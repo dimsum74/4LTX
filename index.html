@@ -1,0 +1,1789 @@
+<!doctype html>
+<html lang="en" ng-app>
+<head>
+  <meta charset="utf-8">
+  <title>My HTML File</title>
+  <link rel="stylesheet" href="css/PopupWindowStyleSheets.css">
+  <link rel="stylesheet" href="css/2DStyle.css">
+  <script>
+      var screwRatial = 4;
+      var anchorRatial = 0.5;
+      var deletiontimestamp;
+      var drawingflag = false;
+      var dedrawingflag = false;
+      var readytodraw = false;
+      var enddrawing = false;
+      var eventtimestamp;
+      var mousehold = false;
+      var prematureending = true;
+      var skipcheckmeter;
+      var newgroup = "";
+      var newline = "";
+      var shadowline = "";
+      var newmeter = "";
+      var newmeterline = "";
+      var newdeliminator1 = "";
+      var newdeliminator2 = "";
+      var linelistH = "";
+      var linelistV = "";
+      nodeareas = [];
+      criticalRegion = false;
+      enteronce = true;
+      onnodecreate = false;
+      lastdirection="";
+      meteroffset = 10;
+      var scale;
+      platethickness = 0.75;
+      var minlength;
+      halfthick = platethickness/2;
+      var maxmarginatend = 2;
+      var halfthickcor;
+      var mingap;
+      var lineendmargin;
+      var newmeterlinesplit, newdeliminator1split, newdeliminator2split, newmetersplit;
+
+
+  </script>
+  <script src="js/three.min.js"></script>
+  <script src="js/3DDisplay.js"></script>
+  <script src="js/OrbitandPanelControl.js"></script>
+  <script src="js/StartPointSelfAdjustment.js"></script>
+  <script src="js/CollisionDetection.js"></script>
+
+  <script>
+        function cursorPoint(evt){
+            svg1  = evt.currentTarget;
+            pt1   = svg1.createSVGPoint();
+            pt1.x = evt.clientX; pt1.y = evt.clientY;
+            return pt1.matrixTransform(svg1.getScreenCTM().inverse());
+        }
+//The following two functions facilitates mobile device's drawing mechanism.
+        function signalDrawingflag() {
+            //delete creation if click right button
+            if (event.button == 2 || event.button == 3) {
+//                console.log(event.button);
+                event.preventDefault();
+                event.stopPropagation();
+                drawingflag = false;
+                dedrawingflag = false;
+                prematureending = true;
+            } else if(!needsplit){
+                //make sure that nodes can be flipped
+                if (checkonNode(originco.x, originco.y)){
+                    onnodecreate = true;
+                    return;
+                }else{
+                    onnodecreate = false;
+                }
+
+                if (!dedrawingflag) {
+
+                    //record click time to detect deletion
+                    deletiontimestamp = event.timeStamp;
+
+                    drawingflag = true;
+                    makealignment(cursorPoint(event));
+                } else {
+                    //compare two consecutive click, if difference is less than 300ms then delete this line.
+                    if (event.timeStamp < deletiontimestamp+300){
+                        deleteline(event.target);
+                    }
+
+                    drawingflag = false;
+                }
+            }
+//            event.stopPropagation();
+        }
+        //canvas mouseup
+        function fireEvent(){
+            if (drawingflag){
+                createline(event);
+                skipcheckmeter = false;
+                dedrawingflag = true;
+            } else if (!needsplit){
+                endcreation(event);
+                eventtimestamp = event.timeStamp;
+                event="";
+                dedrawingflag = false;
+                deletealignment();
+            }
+        }
+
+
+        function createline(evt){
+            if (mousehold || needsplit){
+                return;
+            }
+            originco = cursorPoint(evt);
+            if (document.getElementsByClassName('alignment').length !== 0){
+                originco = lineautodetection(originco, "frame", 2*halfthickcor, halfthickcor);
+            }
+
+            mousehold = true;
+            svg = evt.currentTarget;
+            newgroup = document.createElementNS("http://www.w3.org/2000/svg",'g');
+            newgroup.setAttribute('class',"frameholder")
+            svg.getElementById("plates").appendChild(newgroup);
+            newline = document.createElementNS("http://www.w3.org/2000/svg",'line');
+            newline.setAttribute('class',"drawing");
+            shadowline = document.createElementNS("http://www.w3.org/2000/svg",'line');
+            shadowline.setAttribute('class',"shadow");
+            //originco = cursorPoint(evt);
+            relocatecursortoendofline(originco,lineendmargin);
+            newline.setAttribute('x1',originco.x);
+            newline.setAttribute('y1',originco.y);
+            newline.setAttribute('x2',originco.x);
+            newline.setAttribute('y2',originco.y);
+            newline.setAttribute('width',document.getElementById("width").value);
+            mlist = document.getElementById("materialSelection");
+            newline.setAttribute('material',mlist.options[mlist.selectedIndex].innerHTML);
+            newline.setAttribute('thickness',platethickness);
+            shadowline.setAttribute('x1',originco.x);
+            shadowline.setAttribute('y1',originco.y);
+            shadowline.setAttribute('x2',originco.x);
+            shadowline.setAttribute('y2',originco.y);
+            newline.setAttribute('stroke-width',2*halfthickcor);
+
+            newgroup.appendChild(newline);
+            newgroup.appendChild(shadowline);
+            createmeter(newgroup);
+            linelistH = document.getElementsByName("horizontal");
+            linelistV = document.getElementsByName("vertical");
+
+
+        }
+        function relocatecursortoendofline(mouse,margin){
+            sourceline = document.getElementById("thechosenline");
+            if (sourceline == null){
+                return mouse;
+            }
+            
+            x1 = +Math.min(+sourceline.getAttribute('x1'),+sourceline.getAttribute('x2'));
+            y1 = +Math.min(+sourceline.getAttribute('y1'),+sourceline.getAttribute('y2'));
+            x2 = +Math.max(+sourceline.getAttribute('x1'),+sourceline.getAttribute('x2'));
+            y2 = +Math.max(+sourceline.getAttribute('y1'),+sourceline.getAttribute('y2'));
+            if (sourceline.getAttribute('name') == "horizontal"){
+//                console.log("set mouse on endx(Hori) "+mouse.x+" "+x1+" "+x2);
+                if(+mouse.x < +x1+ +margin){
+                    mouse.x = +x1+ +halfthickcor;
+                }else if (+mouse.x > +x2- +margin){
+                    mouse.x = +x2- +halfthickcor;
+                }
+            }else if (sourceline.getAttribute('name') == "vertical"){
+//                console.log("set mouse on endy(vert) "+mouse.y+" "+y1+" "+y2);
+                if(+mouse.y < +y1+ +margin){
+                    mouse.y = +y1+ +halfthickcor;
+                }else if (+mouse.y > +y2- +margin){
+                    mouse.y = +y2- +halfthickcor;
+                }
+            }
+            return mouse;
+        }
+        function checkonNode(x, y){
+            temp = document.getElementsByClassName("node");
+            area = "";
+            for (i = 0; i < temp.length; i++) {
+                area = getBoundingBoxforNode(temp[i]);
+                if (+x>=+x1 && +x<=+x2 && +y>=+y1 && +y<=+y2){
+                    return true;
+                }
+            }
+            return false;
+        }
+        function labelline(obj, newid){
+            if (!needsplit && event.timeStamp>eventtimestamp+50) {
+                obj.setAttribute('id', newid);
+            }
+        }
+        function labellineclass(obj, newclass){
+            if (!needsplit && obj.getAttribute('class') === "frame" && event !== "") {
+                obj.setAttribute('class', newclass);
+            }
+        }
+        function delabellineclass(obj){
+            if (!needsplit) {
+                obj.setAttribute('class', "frame");
+            }
+        }
+        function createmeter(group){
+            newmeter = document.createElementNS("http://www.w3.org/2000/svg",'text');
+            newmeter.setAttribute('class',"meters");
+            newmeter.setAttribute('id',"meter");
+            group.appendChild(newmeter);
+            newmeterline = document.createElementNS("http://www.w3.org/2000/svg",'line');
+            //unknown reason to set to meterslinedrawing
+            newmeterline.setAttribute('class',"meterslinedrawing");
+            newmeterline.setAttribute('id',"meterline");
+            group.appendChild(newmeterline);
+            newdeliminator1 = document.createElementNS("http://www.w3.org/2000/svg",'line');
+            newdeliminator2 = document.createElementNS("http://www.w3.org/2000/svg",'line');
+            newdeliminator1.setAttribute('class',"deliminator");
+            newdeliminator2.setAttribute('class',"deliminator");
+            newdeliminator1.setAttribute('id',"deliminator1");
+            newdeliminator2.setAttribute('id',"deliminator2");
+            group.appendChild(newdeliminator1);
+            group.appendChild(newdeliminator2);
+        }
+        function drawing(evt){
+            originco = cursorPoint(evt);
+            document.getElementById('log3').value = originco.x+" "+originco.y;
+            //if (mousehold && !needsplit){dedrawingflag
+            if (document.getElementsByClassName('alignment').length !== 0){
+                if (dedrawingflag) {
+                    lineautodetection(originco, "frame", 2 * halfthickcor, halfthickcor, "precise");
+                }else{
+                    lineautodetection(originco, "frame", 2 * halfthickcor, halfthickcor);
+                }
+                updatealignment(originco);
+            }
+
+
+            if (dedrawingflag && !needsplit){
+                prematureending = false;
+                document.getElementById('log2').value = "drawing";
+                //originco = cursorPoint(evt);
+                function checkstartpoint(){
+                    x1 = sourceline.getAttribute('x1');
+                    y1 = sourceline.getAttribute('y1');
+                    x2 = sourceline.getAttribute('x2');
+                    y2 = sourceline.getAttribute('y2');
+                    sx1 = shadowline.getAttribute('x1');
+                    sx2 = shadowline.getAttribute('x2');
+                    sy1 = shadowline.getAttribute('y1');
+                    sy2 = shadowline.getAttribute('y2');
+                    maxy = +Math.max(+y1,+y2);
+                    maxx = +Math.max(+x1,+x2);
+                    miny = +Math.min(+y1,+y2);
+                    minx = +Math.min(+x1,+x2);
+                    if (+x1 == +x2 && +sx1 != +sx2){
+                        model1 = "0";
+                        model2 = "90";
+                        alt1 = "270";
+                        alt2 = "180";
+                        if(+sy1>+maxy- +2.5*scale){
+                            model1 = "270";
+                            model2 = "180";
+                            alt1 = "";
+                            alt2 = "";
+                        }
+                        if(+sy1<miny+ +2.5*scale){
+                            alt1 = "";
+                            alt2 = "";
+                        }
+                        if (+sx2 > +x1){
+                            newline.setAttribute('x1',+x1+ +halfthickcor);
+                            shadowline.setAttribute('x1',+x1+ +halfthickcor);
+                            removetempnodebyid(x1+" "+sy2+" "+model2,true);
+                            if (+sx2 >= +x1+ +halfthickcor+ +scale){
+                                makenode(x1,sy2,model1,alt1);
+                            }else{
+                                removetempnodebyid(x1+" "+sy2+" "+model1,true);
+                            }
+                        }else if (+sx2 < +x1){
+                            newline.setAttribute('x1',+x1- +halfthickcor);
+                            shadowline.setAttribute('x1',+x1- +halfthickcor);
+                            removetempnodebyid(x1+" "+sy2+" "+model1,true);
+                            if (+sx2 <= +x1- +halfthickcor- +scale){
+                                makenode(x1,sy2,model2,alt2);
+                            }else{
+                                removetempnodebyid(x1+" "+sy2+" "+model2,true);
+                            }
+                        }
+                        
+                    }else if(+y1 == +y2 && +sy1 != +sy2){
+                        model1 = "0";
+                        model2 = "270";
+                        alt1 = "90";
+                        alt2 = "180";
+                        if(+sx1>+maxx- +2.5*scale){
+                            model1 = "90";
+                            model2 = "180";
+                            alt1 = "";
+                            alt2 = "";
+                        }
+                        if (+sx1<+minx+ +2.5*scale){
+                            alt1 = "";
+                            alt2 = "";
+                        }
+                        if (+sy2 > +y1){
+                            newline.setAttribute('y1',+y1+ +halfthickcor);
+                            shadowline.setAttribute('y1',+y1+ +halfthickcor);
+                            removetempnodebyid(sx1+" "+y1+" "+model2,true);
+                            if (+sy2 >= +y1+ +halfthickcor+ +scale){
+                                makenode(sx1,y1,model1,alt1);
+                            }else {
+                                removetempnodebyid(sx1+" "+y1+" "+model1,true);
+                            }
+                        }else if (+sy2 < +y1){
+                            newline.setAttribute('y1',+y1- +halfthickcor);
+                            shadowline.setAttribute('y1',+y1- +halfthickcor);
+                            removetempnodebyid(sx1+" "+y1+" "+model1,true);
+                            if (+sy2 <= +y1- +halfthickcor- +scale){
+                                makenode(sx1,y1,model2,alt2);
+                            }else{
+                                removetempnodebyid(sx1+" "+y1+" "+model2,true);
+                            }
+                        }
+                    }
+                }
+                
+                sourceline = document.getElementById("thechosenline");
+                if (sourceline != null){
+                    checkstartpoint();
+                }
+                
+                originco = findintersection(shadowline,originco);
+                //criticalregion is set when mouse moves on the line
+                if (!criticalRegion || sourceline != null || enteronce){
+                    
+                    if (criticalRegion){
+                        enteronce = false;
+                    }else{
+                        temp = document.getElementsByClassName("preselectedframe");
+                        for (i = 0; i < temp.length; i++) {
+                            temp[i].setAttribute('class',"frame");
+                        }
+                        enteronce = true;
+                    }
+                    newline.setAttribute('x2',originco.x);
+                    newline.setAttribute('y2',originco.y);
+                    if (Math.abs(shadowline.getAttribute('x1')-originco.x) 
+                        <= Math.abs(shadowline.getAttribute('y1')-originco.y)){
+                        shadowline.setAttribute('x2',shadowline.getAttribute('x1'));
+                        shadowline.setAttribute('y2',originco.y);
+                        shadowline.setAttribute('name',"vertical");
+                        newmeterline.setAttribute('direction',"vertical");
+                    }else{
+                        shadowline.setAttribute('y2',shadowline.getAttribute('y1'));
+                        shadowline.setAttribute('x2',originco.x);
+                        shadowline.setAttribute('name',"horizontal");
+                        newmeterline.setAttribute('direction',"horizontal");
+                    }
+                    makemeters(newmeter,newmeterline, shadowline.getAttribute('x1'), shadowline.getAttribute('x2'),
+                            shadowline.getAttribute('y1'), shadowline.getAttribute('y2'));
+                }
+                findilegalnodes();
+                markillegallinecrossing();
+                removenodeinwrongdirection(shadowline);
+            }
+        }
+        needsplit = false;
+        function checklinesplit(line){
+            needsplit = false;
+            box = getboundingboxforline(line,0,0,halfthickcor);
+            var lineid = line.getAttribute('id');
+            if (line.getAttribute('name') == "horizontal"){
+                for (i = 0; i < linelistV.length;++i) {
+                    if(checktwoRectCollide(box,getboundingboxforline(linelistV[i],0,0,halfthickcor))){
+//                        console.log("split");
+                        needsplit = true;
+                        linelistV[i].setAttribute('class',"waitforsplit");
+                        linelistV[i].setAttribute('colx',linelistV[i].getAttribute('x1'));
+                        linelistV[i].setAttribute('coly',line.getAttribute('y1'));
+                        linelistV[i].setAttribute('onclick',"splitline()");
+                        linelistV[i].setAttribute('conline',lineid);
+                        line.setAttribute('class',"waitforsplit");
+                        line.setAttribute('colx',linelistV[i].getAttribute('x1'));
+                        line.setAttribute('coly',line.getAttribute('y1'));
+                        line.setAttribute('onclick',"splitline()");
+                        line.setAttribute('conline',linelistV[i].getAttribute('id'));
+                        document.getElementById("msg1").textContent = "ERROR: Must resolve line conflict before continue:";
+                        document.getElementById("msg2").textContent = "Click one of the two blue lines to split it into two parts.";
+                        removematerial(line);
+                        removematerial(linelistV[i]);
+                        return true;
+                    }
+                }
+            }else if (line.getAttribute('name') == "vertical"){
+                for (i = 0; i < linelistH.length;++i) {
+                    if(checktwoRectCollide(box,getboundingboxforline(linelistH[i],0,0,halfthickcor))){
+//                        console.log("split");
+                        needsplit = true;
+                        linelistH[i].setAttribute('class',"waitforsplit");
+                        linelistH[i].setAttribute('colx',line.getAttribute('x1'));
+                        linelistH[i].setAttribute('coly',linelistH[i].getAttribute('y1'));
+                        linelistH[i].setAttribute('onclick',"splitline()");
+                        linelistH[i].setAttribute('conline',lineid);
+                        line.setAttribute('class',"waitforsplit");
+                        line.setAttribute('colx',line.getAttribute('x1'));
+                        line.setAttribute('coly',linelistH[i].getAttribute('y1'));
+                        line.setAttribute('onclick',"splitline()");
+                        line.setAttribute('conline',linelistH[i].getAttribute('id'));
+                        document.getElementById("msg1").textContent = "ERROR: Must resolve line conflict before continue:";
+                        document.getElementById("msg2").textContent = "Click one of the two blue lines to split it into two parts.";
+                        removematerial(line);
+                        removematerial(linelistH[i]);
+                        return true;
+                    }
+                }
+            }
+            line.setAttribute('class',"frame");
+            updatemateriallist(line);
+            return false;
+        }
+        function setmeterid(meter,meterline,d1,d2,lineid){
+            var meterid = meterline.getAttribute('x1')+" "+meterline.getAttribute('y1')+" "+meterline.getAttribute('x2')+" "+meterline.getAttribute('y2');
+            meter.setAttribute('id',lineid+" meter "+meterid);
+            meterline.setAttribute('id',lineid+" meterline "+meterid);
+            meterline.setAttribute('originid',lineid+" meterline "+meterid);
+            d1.setAttribute('id',lineid+" deliminator1 "+meterid);
+            d2.setAttribute('id',lineid+" deliminator2 "+meterid);
+        }
+
+
+        function splitline(){
+            if (event.timeStamp > +eventtimestamp+ +50) {
+                var lineid;
+                var line = event.target;
+                removematerial(line);
+                var x1 = line.getAttribute('x1');
+                var y1 = line.getAttribute('y1');
+                var x2 = line.getAttribute('x2');
+                var y2 = line.getAttribute('y2');
+                var sx = line.getAttribute('colx');
+                var sy = line.getAttribute('coly');
+                //console.log(x1+" "+y1+" "+x2+" "+y2+" "+sx+" "+sy);
+                var halfthickx = halfthickcor;
+                var halfthicky = 0;
+                if (+x1 == +x2) {
+                    halfthickx = 0;
+                    halfthicky = halfthickcor;
+                }
+                var newcontainer = document.createElementNS("http://www.w3.org/2000/svg",'g');
+                newcontainer.setAttribute('class',"frameholder")
+                var newlineclone = line.cloneNode(true);
+                newcontainer.appendChild(newlineclone);
+                document.getElementById("plates").appendChild(newcontainer);
+                newlineclone.removeAttribute('colx');
+                newlineclone.removeAttribute('coly');
+                newlineclone.setAttribute('class', "drawing");
+                var conline = document.getElementById(line.getAttribute('conline'));
+                var originid = line.getAttribute('id');
+
+                adjustline(line, 'l');
+                adjustline(newlineclone, 'h');
+                updatelinedeletioninfo(line,newlineclone,originid);
+
+                line.setAttribute("splittedby",conline.getAttribute('id'));
+                line.setAttribute("mergeondeletion",newlineclone.getAttribute('id'));
+
+                conline.setAttribute('class', "drawing");
+                conline.removeAttribute('onclick');
+                checksplitmeter(conline,line.getAttribute('id'),line.parentNode,newcontainer,newlineclone.getAttribute('id'));
+                checksplitmeter(line);
+
+                checksplitmeter(newlineclone);
+                needsplit = false;
+                endcreation();
+                function adjustline(line, dir) {
+                    var target;
+                    prematureending = false;
+                    if (dir == 'l') {
+                        if (+x1 == +x2) {
+                            target = +sy - +halfthickcor;
+                            lineid = originid.replace(line.getAttribute('y2'),target);
+                            line.setAttribute('y2', target);
+                        } else if (+y1 == +y2) {
+                            target = +sx - +halfthickcor;
+                            lineid = originid.replace(line.getAttribute('x2'),target);
+                            line.setAttribute('x2', target);
+                        }
+                    } else if (dir == 'h') {
+                        if (+x1 == +x2) {
+                            target = +sy + +halfthickcor;
+                            lineid = originid.replace(line.getAttribute('y1'),target);
+                            line.setAttribute('y1', target);
+                        } else if (+y1 == +y2) {
+                            target = +sx + +halfthickcor;
+                            lineid = originid.replace(line.getAttribute('x1'),target);
+                            line.setAttribute('x1', target);
+                        }
+                    }
+                    line.setAttribute('id',lineid);
+                    line.removeAttribute('colx');
+                    line.removeAttribute('coly');
+                    line.removeAttribute('conline');
+                    line.removeAttribute('onclick');
+                    line.setAttribute('onmouseup', "labelline(this,'thechosenline')");
+                    line.setAttribute('class', "drawing");
+                }
+            }
+        }
+        function updatelinedeletioninfo(lowline, highline, oldid){
+            var checklist = document.getElementsByClassName("frame");
+            var newlowid = lowline.getAttribute('id');
+            var newhighid = highline.getAttribute('id');
+            for (var i=0;i<checklist.length;++i){
+                if (checklist[i].getAttribute('splittedby') === oldid){
+                    if (checklist[i].getAttribute('name') === "horizontal"){
+                        if (checklist[i].getAttribute('y1') <  lowline.getAttribute('y2')){
+                            checklist[i].setAttribute('splittedby',newlowid);
+                        } else{
+                            checklist[i].setAttribute('splittedby',newhighid);
+                        }
+                    } else {
+                        if (checklist[i].getAttribute('x1') <  lowline.getAttribute('x2')){
+                            checklist[i].setAttribute('splittedby',newlowid);
+                        } else{
+                            checklist[i].setAttribute('splittedby',newhighid);
+                        }
+                    }
+                }
+                if (checklist[i].getAttribute('mergeondeletion') === oldid){
+                    checklist[i].setAttribute('mergeondeletion',newlowid);
+                }
+            }
+            var meterlinels = document.getElementsByClassName("metersline");
+            for (var i=0;i<meterlinels.length;++i){
+                var splitby = meterlinels[i].getAttribute('splittedby');
+                var line = meterlinels[i].parentNode.childNodes[0];
+                if (splitby !== null) {
+                    if (line.getAttribute('name') === "horizontal"){
+                        if (line.getAttribute('y1') <  lowline.getAttribute('y2')){
+                            meterlinels[i].setAttribute('splittedby',splitby.replace(oldid,newlowid));
+                        } else{
+                            meterlinels[i].setAttribute('splittedby',splitby.replace(oldid,newhighid));
+                        }
+                    } else {
+                        if (line.getAttribute('x1') <  lowline.getAttribute('x2')){
+                            meterlinels[i].setAttribute('splittedby',splitby.replace(oldid,newlowid));
+                        } else{
+                            meterlinels[i].setAttribute('splittedby',splitby.replace(oldid,newhighid));
+                        }
+                    }
+                }
+
+            }
+
+
+
+        }
+        function checksplitmeter(splittingline, lineid, parentl, parenth, newlineid) {
+            var meterslinels = document.getElementsByClassName('metersline');
+            if (parentl == undefined) {
+                for (var i = 0; i < meterslinels.length; ++i) {
+                    if (meterslinels[i].getAttribute('direction') !== splittingline.getAttribute('name')) {
+                        if (checktwoRectCollide(getboundingboxforline(meterslinels[i], 0, 0, 0, "formetersplit"), getboundingboxforline(splittingline, 2 * halfthickcor, "lh", 0)) &&
+                                !checktwoRectCollide(getboundingboxforline(meterslinels[i], 0, 0, 0, "formetersplit"), getboundingboxforline(splittingline,0,0,halfthickcor))) {
+                            splitmeter(meterslinels[i], splittingline,
+                                    meterslinels[i].parentNode.childNodes[0].getAttribute('id'));
+                            //console.log(document.getElementById(splittingline.getAttribute('mergeondeletion')));
+                            if (splittingline.getAttribute('mergeondeletion') !== null){
+                                meterslinels[i].setAttribute('splittedby',
+                                                meterslinels[i].getAttribute('splittedby')+splittingline.getAttribute('mergeondeletion')+",")
+                            }
+                        }
+                    }
+                }
+            } else {
+                for (var i = 0; i < meterslinels.length; ++i) {
+                    if (meterslinels[i].parentNode === parentl &&
+                            checktwoRectCollide(getboundingboxforline(splittingline, 2 * halfthickcor, "lh", 0), getboundingboxforline(meterslinels[i], 0, 0, 0, "formetersplit"))) {
+                        splitmeter(meterslinels[i], splittingline, lineid, parenth, newlineid);
+                    }
+                }
+            }
+
+
+            function splitmeter(metersline, splittingline, lineid, parenth, newlineid) {
+                var meterlineid = metersline.getAttribute('id');
+                var direction = metersline.getAttribute('direction');
+                if (parenth === undefined){
+                    parenth = metersline.parentNode;
+                    newlineid = lineid;
+                }
+                var newmeterline = metersline.cloneNode(true);
+                parenth.appendChild(newmeterline);
+                var meters = document.getElementById(meterlineid.replace("meterline", "meter"));
+                var newmeter = meters.cloneNode(true);
+                parenth.appendChild(newmeter);
+                var d1 = document.getElementById(meterlineid.replace("meterline", "deliminator1"));
+                var newd1 = d1.cloneNode(true);
+                parenth.appendChild(newd1);
+                var d2 = document.getElementById(meterlineid.replace("meterline", "deliminator2"));
+                var newd2 = d2.cloneNode(true);
+                parenth.appendChild(newd2);
+
+                var target;
+                //lower part
+                if (direction == "horizontal") {
+                    var x1 = metersline.getAttribute('x1');
+                    target = splittingline.getAttribute('x1')-halfthickcor;
+                    meters.textContent = ((+target - +x1) / scale).toFixed(1);
+                    meters.setAttribute('x', +x1 + +(+target - +x1) / 2);
+                    metersline.setAttribute('x2', target);
+                    d2.setAttribute('x2', target);
+                    d2.setAttribute('x1', target);
+                } else {
+                    var y1 = metersline.getAttribute('y1');
+                    target = splittingline.getAttribute('y1')-halfthickcor;
+                    meters.textContent = ((+target - +y1) / scale).toFixed(1);
+                    meters.setAttribute('y', +y1 + +(+target - +y1) / 2);
+                    metersline.setAttribute('y2', target);
+                    d2.setAttribute('y2', target);
+                    d2.setAttribute('y1', target);
+                }
+                //higher part
+                if (direction == "horizontal") {
+                    var x2 = newmeterline.getAttribute('x2');
+                    target = +splittingline.getAttribute('x1')+ +halfthickcor;
+                    newmeter.textContent = ((+x2 - +target) / scale).toFixed(1);
+                    newmeter.setAttribute('x', +x2 - +(+x2 - +target) / 2);
+                    newmeterline.setAttribute('x1', target);
+                    newd1.setAttribute('x2', target);
+                    newd1.setAttribute('x1', target);
+                } else {
+                    var y2 = newmeterline.getAttribute('y2');
+                    target = +splittingline.getAttribute('y1')+ +halfthickcor;
+                    newmeter.textContent = ((+y2 - +target) / scale).toFixed(1);
+                    newmeter.setAttribute('y', +y2 - +(+y2 - +target) / 2);
+                    newmeterline.setAttribute('y1', target);
+                    newd1.setAttribute('y2', target);
+                    newd1.setAttribute('y1', target);
+                }
+                setmeterid(meters, metersline, d1, d2, lineid);
+                setmeterid(newmeter, newmeterline, newd1, newd2, newlineid);
+                metersline.setAttribute('splittedby',splittingline.getAttribute('id')+",");
+                metersline.setAttribute('mergeondeletion',newmeterline.getAttribute('id'));
+                var meterlinels = document.getElementsByClassName('metersline');
+                for (var i=0;i<meterlinels.length;++i) {
+                    if (meterlinels[i].getAttribute('mergeondeletion') === meterlineid) {
+                        meterlinels[i].setAttribute('mergeondeletion', metersline.getAttribute('id'));
+                    }
+                }
+            }
+        }
+        function deleteline(obj){
+            console.log("attempt deletion "+obj.getAttribute('x1')+ " "+obj.getAttribute('y1')+" "+obj.getAttribute('x2')+ " "+obj.getAttribute('y2'));
+            if (obj.getAttribute('class') !== "thisline" && obj.getAttribute('class') !== "frame" &&
+                    obj.getAttribute('class') !== "waitforsplit" && obj.getAttribute('class') !== "drawing"){
+                return;
+            }
+
+            var thislineid = obj.getAttribute('x1') + " " + obj.getAttribute('y1') + " " + obj.getAttribute('x2') + " " + obj.getAttribute('y2');
+            var linels = document.getElementsByClassName("frame");
+            var nodels = document.getElementsByClassName("node");
+            var meterlinels = document.getElementsByClassName("metersline");
+            var linetobedeleted, frameholdertobemerged;
+            var meterlinetoberemained;
+            var meterline, meter, d1, d2, line;
+            var tempx1, tempy1, tempx2, tempy2;
+            var linex1 = obj.getAttribute('x1');
+            var liney1 = obj.getAttribute('y1');
+            var linex2 = obj.getAttribute('x2');
+            var liney2 = obj.getAttribute('y2');
+
+
+            //delete brackets that depend on this line
+            for (var i=0;i<linels.length;++i) {
+                tempx1 = linels[i].getAttribute('x1');
+                tempy1 = linels[i].getAttribute('y1');
+                tempx2 = linels[i].getAttribute('x2');
+                tempy2 = linels[i].getAttribute('y2');
+
+                if (linex1 === linex2 && tempy1 === tempy2 && +linex1 <= +tempx2 + +halfthickcor && linex1 >= tempx1 - halfthickcor) {
+                    if ((liney1 == +tempy1 + +halfthickcor || liney1 == +tempy1 - +halfthickcor)) {
+                        removetempnodebyid(linex1 + " " + tempy1 + " 0", false);
+                        removetempnodebyid(linex1 + " " + tempy1 + " 90", false);
+                    } else if (liney2 == +tempy1 - +halfthickcor || liney2 == +tempy1 + +halfthickcor) {
+                        removetempnodebyid(linex1 + " " + tempy1 + " 180", false);
+                        removetempnodebyid(linex1 + " " + tempy1 + " 270", false);
+                    } else if (tempx1 == +linex1 + +halfthickcor || tempx1 == +linex1 - +halfthickcor) {
+                        removetempnodebyid(linex1 + " " + tempy1 + " 0", false);
+                        removetempnodebyid(linex1 + " " + tempy1 + " 270", false);
+                    } else if (tempx2 == +linex1 - +halfthickcor || tempx2 == +linex1 + +halfthickcor) {
+                        removetempnodebyid(linex1 + " " + tempy1 + " 90", false);
+                        removetempnodebyid(linex1 + " " + tempy1 + " 180", false);
+                    }
+                } else if (liney1 === liney2 && tempx1 === tempx2 && +liney1 <= +tempy2 + +halfthickcor && liney1 >= tempy1 - halfthickcor) {
+//                    console.log("horizontal");
+//                    console.log(tempy1 + " " + (+liney1 + +halfthickcor) + " " + (+liney1 - +halfthickcor));
+                    if ((linex1 == +tempx1 + +halfthickcor || linex1 == +tempx1 - +halfthickcor)) {
+                        removetempnodebyid(tempx1 + " " + liney1 + " 0", false);
+                        removetempnodebyid(tempx1 + " " + liney1 + " 270", false);
+                    } else if (linex2 == +tempx1 - +halfthickcor || linex2 == +tempx1 + +halfthickcor) {
+                        removetempnodebyid(tempx1 + " " + liney1 + " 90", false);
+                        removetempnodebyid(tempx1 + " " + liney1 + " 180", false);
+                    } else if (tempy1 == +liney1 + +halfthickcor || tempy1 == +liney1 - +halfthickcor) {
+                        removetempnodebyid(tempx1 + " " + liney1 + " 0", false);
+                        removetempnodebyid(tempx1 + " " + liney1 + " 90", false);
+                    } else if (tempy2 == +liney1 - +halfthickcor || tempy2 == +liney1 + +halfthickcor) {
+                        removetempnodebyid(tempx1 + " " + liney1 + " 180", false);
+                        removetempnodebyid(tempx1 + " " + liney1 + " 270", false);
+                    }
+                }
+            }
+
+            //merge two frames separated by obj
+            for (var i=0;i<linels.length;++i){
+                if (linels[i].getAttribute('splittedby') === thislineid){
+                    linetobedeleted = document.getElementById(linels[i].getAttribute('mergeondeletion'));
+                    var oldid = linels[i].getAttribute('id');
+
+
+
+                    if (linetobedeleted != null) {
+                        var deleteid = linetobedeleted.getAttribute('id');
+                        removematerial(linels[i]);
+                        if (linels[i].getAttribute('name') === "horizontal") {
+                            linels[i].setAttribute('id', linels[i].getAttribute('id').replace(linels[i].getAttribute('x2'), linetobedeleted.getAttribute('x2')));
+                            linels[i].setAttribute('x2', linetobedeleted.getAttribute('x2'));
+                        } else {
+                            linels[i].setAttribute('id', linels[i].getAttribute('id').replace(linels[i].getAttribute('y2'), linetobedeleted.getAttribute('y2')));
+                            linels[i].setAttribute('y2', linetobedeleted.getAttribute('y2'));
+                        }
+                        for (var j=0;j<linels.length;++j){
+                            if (linels[j].getAttribute('mergeondeletion') === oldid){
+                                linels[j].setAttribute('mergeondeletion',linels[i].getAttribute('id'));
+                            }
+                            if (linels[j].getAttribute('splittedby') === deleteid || linels[j].getAttribute('splittedby') === oldid){
+                                linels[j].setAttribute('splittedby',linels[i].getAttribute('id'));
+                            }
+
+                        }
+                        for (var j=0;j<meterlinels.length;++j){
+                            if (meterlinels[j].getAttribute('splittedby') != null) {
+                                meterlinels[j].setAttribute('splittedby', meterlinels[j].getAttribute('splittedby').replace(deleteid, linels[i].getAttribute('id')));
+                                meterlinels[j].setAttribute('splittedby', meterlinels[j].getAttribute('splittedby').replace(oldid, linels[i].getAttribute('id')));
+                            }
+                        }
+
+                        updatemateriallist(linels[i]);
+                        linels[i].removeAttribute('splittedby');
+                        frameholdertobemerged = linetobedeleted.parentNode;
+                        removematerial(linetobedeleted);
+                        frameholdertobemerged.removeChild(linetobedeleted);
+                        while (frameholdertobemerged.hasChildNodes()) {
+                            linels[i].parentNode.appendChild(frameholdertobemerged.firstChild);
+                        }
+                        if (linetobedeleted.getAttribute('splittedby') != null){
+                            linels[i].setAttribute('splittedby',linetobedeleted.getAttribute('splittedby'));
+                            linels[i].setAttribute('mergeondeletion',linetobedeleted.getAttribute('mergeondeletion'));
+                        }
+                        frameholdertobemerged.parentNode.removeChild(frameholdertobemerged);
+                    } else {
+                        linels[i].removeAttribute('splittedby');
+                    }
+                }
+
+            }
+            removematerial(obj);
+            obj.parentNode.parentNode.removeChild(obj.parentNode);
+
+            //merge two meterline separated by obj
+            for (var i=0;i<meterlinels.length;++i){
+                var splitby = meterlinels[i].getAttribute('splittedby');
+                if (splitby !== null) {
+                    meterlinels[i].setAttribute('splittedby',splitby.replace(thislineid+",",""));
+                    if (meterlinels[i].getAttribute('splittedby') === "") {
+                        meterlinetoberemained = document.getElementById(meterlinels[i].getAttribute('mergeondeletion'));
+                        if (meterlinetoberemained != null) {
+                            var oldmeterlineid = meterlinels[i].getAttribute('id');
+                            mergetwometers(meterlinels[i], meterlinetoberemained);
+
+                            for (var j=0;j<meterlinels.length;++j){
+                                if (meterlinels[j].getAttribute('mergeondeletion') === oldmeterlineid){
+                                    meterlinels[j].setAttribute('mergeondeletion',meterlinels[i].getAttribute('id'));
+                                }
+
+                            }
+
+                        } else{
+                            meterlinels[i].removeAttribute('splittedby');
+                        }
+                    }
+                }
+            }
+        }
+
+        function endcreation(){
+            enddrawing = true;
+            updatealignment({x:-1,y:-1});
+            if (onnodecreate){
+                return;
+            }
+            temp0 = document.getElementById("thechosenline");
+            if (temp0 != null){
+                temp0.setAttribute('id',temp0.getAttribute('x1')+" "+temp0.getAttribute('y1')+" "
+                    +temp0.getAttribute('x2')+" "+temp0.getAttribute('y2'));
+            }
+            temp = document.getElementsByClassName("preselectedframe");
+            for (i = 0; i < temp.length;) {
+//                console.log("f");
+                temp[i].setAttribute('class',"frame");
+            }
+            function deleteeverything(){
+                if(temp1.hasChildNodes()){
+                    shadowline = "";
+                    newline = "";
+                    if (newgroup != ""){
+//                        console.log(newgroup+" "+newgroup.parentNode);
+                        temp1.removeChild(newgroup);
+                    }
+                    mousehold = false;
+                }
+            }
+            temp1 = document.getElementById("plates");
+            
+            if (prematureending){
+                prematureending = false;
+                deletetempnode();
+                deleteeverything();
+                return;
+            }
+            
+            if (document.getElementsByClassName("illegalline").length>0 ||
+                document.getElementsByClassName("collisionnode").length>0){
+                deletetempnode();
+                deleteeverything();
+                setgroupclassname("badframe","frame");
+                cleartempnode();
+                return;
+            }
+
+            mousehold = false;
+            prematureending = true;
+            if (newline != ""){
+                var x1 = newline.getAttribute('x1');
+                var x2 = newline.getAttribute('x2');
+                var y1 = newline.getAttribute('y1');
+                var y2 = newline.getAttribute('y2');
+                if (Math.abs(x1-x2) <= Math.abs(y1-y2)){
+                    if (Math.abs(y1-y2) < minlength){
+                        deleteeverything();
+                        cleartempnode();
+                        return;
+                    }
+                    newline.setAttribute('x2',x1);
+                    newline.setAttribute('name',"vertical");
+                    if(+y1 > +y2){
+                        newline.setAttribute('y2',y1);
+                        newline.setAttribute('y1',y2);
+                    }
+                }else{
+                    if (Math.abs(x1-x2) < minlength){
+                        deleteeverything();
+                        cleartempnode();
+                        return;
+                    }
+                    newline.setAttribute('y2',y1);
+                    newline.setAttribute('name',"horizontal");
+                    if(+x1 > +x2){
+                        newline.setAttribute('x2',x1);
+                        newline.setAttribute('x1',x2);
+                    }
+                }
+                newline.setAttribute('onmouseup',"labelline(this,'thechosenline')");
+                newline.setAttribute('onmouseover',"labellineclass(this,'thisline')");
+                newline.setAttribute('onmouseout',"delabellineclass(this)");
+                //newline.setAttribute('ondblclick',"deleteline(this)");
+                var newlineid = newline.getAttribute('x1')+" "+newline.getAttribute('y1')+" "
+                        +newline.getAttribute('x2')+" "+newline.getAttribute('y2');
+                newline.setAttribute('id',newlineid);
+                newmeterline.setAttribute('class',"metersline");
+                makemeters(newmeter,newmeterline, shadowline.getAttribute('x1'), shadowline.getAttribute('x2'),
+                        shadowline.getAttribute('y1'), shadowline.getAttribute('y2'));
+                setmeterid(newmeter,newmeterline,newdeliminator1,newdeliminator2,newlineid);
+                cleartempnode();
+
+                newgroup.removeChild(shadowline);
+                shadowline = "";
+                newgroup = "";
+            }
+            enddrawing = false;
+            drawls = document.getElementsByClassName("drawing");
+
+            for (ii = 0; ii < drawls.length;) {
+                //console.log(drawls[ii]);
+                t = checklinesplit(drawls[ii]);
+                if (needsplit){
+                    skipcheckmeter = true;
+                    break;
+                }
+                document.getElementById("msg1").textContent = "";
+                document.getElementById("msg2").textContent = "";
+            }
+            if (!needsplit) {
+                var linetobecheckls = document.getElementsByClassName("frame");
+                for (var i = 0; i < linetobecheckls.length; ++i) {
+                    checksplitmeter(linetobecheckls[i]);
+                }
+            }
+
+            newline = "";
+            //newline.setAttribute('class',"frame");
+            //updatemateriallist(newgroup);
+            document.getElementById('log2').value = "mouseup";
+        }
+        function setgroupclassname(classname,newname){
+            source = document.getElementsByClassName(classname);
+            for (i = 0; i < source.length;) {
+                source[i].setAttribute('class',newname);
+            }
+        }
+        function cleartempnode(){
+            source = document.getElementsByClassName("nodepasstest");
+            for (i = 0; i < source.length;) {
+                source[i].removeAttribute("name");
+                source[i].setAttribute('class',"node");
+            }
+        }
+        function deletetempnode(){
+            while((source1 = document.getElementsByName("newnode")).length > 0){
+                //for (i = 0; i < source1.length;) {
+//                    console.log(i+" of "+source1.length);
+                    removetempnodebyid(source1[0].getAttribute("id"),true);
+                //}
+            }
+        }
+        function markillegallinecrossing(){
+            exsitingline = document.getElementsByClassName("frame");
+            for (i = 0; i < exsitingline.length;) {
+                if (exsitingline[i].getAttribute("name") == shadowline.getAttribute("name")){
+                    if (checklineoverlapping(exsitingline[i],shadowline,mingap)){
+                        exsitingline[i].setAttribute('class',"badframe");
+                        newline.setAttribute('class',"illegalline");
+                    }else{
+                        ++i;
+                    }
+                }else{
+                    if (checktwoRectCollide(getboundingboxforline(shadowline,0,0,halfthickcor),
+                            getboundingboxforline(exsitingline[i],minlength,'l',halfthickcor)) ||
+                            checktwoRectCollide(getboundingboxforline(shadowline,0,0,halfthickcor),
+                                    getboundingboxforline(exsitingline[i],minlength,'h',halfthickcor))){
+                        exsitingline[i].setAttribute('class',"badframe");
+                        newline.setAttribute('class',"illegalline");
+                    }else{
+                        ++i;
+                    }
+                }
+            }
+            toberecover = document.getElementsByClassName("badframe");
+            save = toberecover.length;
+            for (i = 0; i < toberecover.length;) {
+                if (toberecover[i].getAttribute("name") == shadowline.getAttribute("name")){
+                    if (!checklineoverlapping(toberecover[i],shadowline,mingap)){
+//                        console.log("f");
+                        toberecover[i].setAttribute('class',"frame");
+                    }else{
+                        ++i;
+                    }
+                }else{
+                    if (!checktwoRectCollide(getboundingboxforline(shadowline,0,0,halfthickcor),
+                            getboundingboxforline(toberecover[i],minlength,'l',halfthickcor)) &&
+                            !checktwoRectCollide(getboundingboxforline(shadowline,0,0,halfthickcor),
+                                    getboundingboxforline(toberecover[i],minlength,'h',halfthickcor))){
+                        toberecover[i].setAttribute('class',"frame");
+                    }else{
+                        ++i;
+                    }
+                }
+            }
+//            console.log(save+" and "+toberecover.length);
+            if (save == 0 && toberecover.length == "0"){
+                newline.setAttribute('class',"drawing");
+            }
+        }
+        function checklineoverlapping(line1,line2,margin){
+            sx1 = line1.getAttribute("x1");
+            sy1 = line1.getAttribute("y1");
+            sx2 = line1.getAttribute("x2");
+            sy2 = line1.getAttribute("y2");
+            cx1 = line2.getAttribute("x1");
+            cy1 = line2.getAttribute("y1");
+            cx2 = line2.getAttribute("x2");
+            cy2 = line2.getAttribute("y2");
+            if (+sx1 == +sx2){
+                return checktwoRectCollide({x1:+sx1- +margin,y1:+Math.min(+sy1,+sy2),x2:+sx1+ +margin,y2:+Math.max(+sy1,+sy2)},
+                                            {x1:+cx1- +margin,y1:+cy1,x2:+cx1+ +margin,y2:+cy2});
+            }else{
+                return checktwoRectCollide({x1:+Math.min(+sx1,+sx2),y1:+sy1- +margin,x2:+Math.max(+sx1,+sx2),y2:+sy2+ +margin},
+                                            {x1:+Math.min(+cx1,+cx2),y1:+cy1- +margin,x2:+Math.max(+cx1,+cx2),y2:+cy2+ +margin});
+            }
+        }
+        function makemeters(meter, meterline, linex1, linex2, liney1, liney2){
+            x1 = Math.min(+linex1,+linex2);
+            y1 = Math.min(+liney1,+liney2);
+            x2 = Math.max(+linex1,+linex2);
+            y2 = Math.max(+liney1,+liney2);
+            var x, y, l, length;
+            y=y1;
+            x=x1;
+            if (y1<y2){
+                l = (y2-y1)/2;
+                length = Math.abs(l);
+                y = +y1 + +l;
+            }else if (y2<y1){
+                l = (y1-y2)/2;
+                length = Math.abs(l);
+                y = +y2 + +l;
+            }
+            if (x1<x2){
+                l = (x2-x1)/2;
+                length = Math.abs(l);
+                x = +x1 + +l;
+            }else if (x2<x1){
+                l = (x1-x2)/2;
+                length = Math.abs(l);
+                x = +x2 + +l;
+            }                 
+            if (x1 == x2){
+                meterline.setAttribute('x1',x1-meteroffset-7);
+                meterline.setAttribute('y1',y1);
+                meterline.setAttribute('x2',x1-meteroffset-7);
+                meterline.setAttribute('y2',y2);
+                meter.setAttribute('x',x1-meteroffset);
+                meter.setAttribute('y',y);
+                meter.setAttribute('style',"writing-mode: tb;");
+                meter.textContent = (2*length/scale).toFixed(1);
+                newdeliminator1.setAttribute('x1',x1-1.3*(+meteroffset+ +7));
+                newdeliminator1.setAttribute('y1',y1);
+                newdeliminator1.setAttribute('x2',x1);
+                newdeliminator1.setAttribute('y2',y1);
+                newdeliminator2.setAttribute('x1',x1-1.3*(+meteroffset+ +7));
+                newdeliminator2.setAttribute('y1',y2);
+                newdeliminator2.setAttribute('x2',x1);
+                newdeliminator2.setAttribute('y2',y2);
+            }else if (y1 == y2){
+                meterline.setAttribute('x1',x1);
+                meterline.setAttribute('y1',+y1+ +meteroffset + 7);
+                meterline.setAttribute('x2',x2);
+                meterline.setAttribute('y2',+y2+ +meteroffset + 7);
+                meter.setAttribute('y',+y1+ +meteroffset + 4);
+                meter.setAttribute('x',x);
+                meter.setAttribute('style',"writing-mode: lr;");
+                meter.textContent = (2*length/scale).toFixed(1);
+                newdeliminator1.setAttribute('x1',x1);
+                newdeliminator1.setAttribute('y1',+y1+ 1.3*(+meteroffset+ +7));
+                newdeliminator1.setAttribute('x2',x1);
+                newdeliminator1.setAttribute('y2',y1);
+                newdeliminator2.setAttribute('x1',x2);
+                newdeliminator2.setAttribute('y1',+y2+ 1.3*(+meteroffset+ +7));
+                newdeliminator2.setAttribute('x2',x2);
+                newdeliminator2.setAttribute('y2',y2);
+            }
+        }
+
+        function makenode(x,y,model,alternativemodel){
+            model = +model % +360;
+            if (document.getElementById(x+" "+y+" "+model) != null){
+                return;
+            }
+            container = document.getElementById("node");
+            newnode = document.createElementNS("http://www.w3.org/2000/svg",'polygon');
+            container.appendChild(newnode);
+
+            newnode.setAttribute('points',(+x- +halfthick*scale)+','+(+y+ +halfthick*scale)+' '+
+                                            (+x+ +halfthick*scale)+','+(+y- +halfthick*scale)+' '+
+                                            (+x+ +(2.5+halfthick)*scale)+','+(+y- +halfthick*scale)+' '+
+                                            (+x+ +(2.5+halfthick)*scale)+','+(+y+ +halfthick*scale)+' '+
+                                            (+x+ +(1.5+halfthick)*scale)+','+(+y+ +halfthick*scale)+' '+
+                                            (+x+ +halfthick*scale)+','+(+y+ +(1.5+halfthick)*scale)+' '+
+                                            (+x+ +halfthick*scale)+','+(+y+ +(2.5+halfthick)*scale)+' '+
+                                            (+x- +halfthick*scale)+','+(+y+ +(2.5+halfthick)*scale)+' ');
+            newnode.setAttribute('transform',"rotate("+model+" "+x+" "+y+")");
+            newnode.setAttribute('id',x+" "+y+" "+model);
+            newnode.setAttribute('class',"tobetestednode");
+            newnode.setAttribute('direction',model);
+            newnode.setAttribute('x',x);
+            newnode.setAttribute('y',y);
+            newnode.setAttribute('ctarget',"");
+            newnode.setAttribute('name',"newnode");
+            newnode.setAttribute('onclick',"flipnode()");
+            newnode.setAttribute('altmodel',alternativemodel);
+            return newnode;
+        }
+
+        function flipnode(){
+            node1 = event.target;
+            x = node1.getAttribute('x');
+            y = node1.getAttribute('y');
+            direction = node1.getAttribute('direction');
+            temp1 = direction;
+            node2 = document.getElementById(x+" "+y+" "+((+direction+ +180)%360));
+            direction = node1.getAttribute('altmodel');
+            if (direction == ""){
+                return;
+            }
+            removetempnodebyid(node1.getAttribute('id'),false);
+            makenode(x,y,direction,temp1).removeAttribute("name");
+            if (node2 != null){
+                direction2 = node2.getAttribute('direction');
+                temp2 = direction2;
+                direction2 = node2.getAttribute('altmodel');
+                removetempnodebyid(node2.getAttribute('id'),false);
+                makenode(x,y,direction2,temp2).removeAttribute("name");
+                
+            }
+            findilegalnodes();
+            cleartempnode();
+        }
+        function findintersection(line,mouse){
+            x1=line.getAttribute('x1');
+            y1=line.getAttribute('y1');
+            x2=line.getAttribute('x2');
+            y2=line.getAttribute('y2');
+            criticalRegion = false;
+            if ((+x2 < +x1) || (+y2 < +y1)){
+                model = "0";
+            }else if((+x2 > +x1) || (+y2 > +y1)){
+                model = "180";
+            }
+            if (+x1==+x2 && +y1 != +y2){
+                for (i = 0; i < linelistH.length; i++) {
+                    dx1=linelistH[i].getAttribute('x1');
+                    dy1=linelistH[i].getAttribute('y1');
+                    dx2=linelistH[i].getAttribute('x2');
+                    dy2=linelistH[i].getAttribute('y2');
+                    if (+Math.min(+y1,+y2) <= (+dy1+ +halfthickcor) && 
+                            +Math.max(+y1,+y2) >= (+dy1- +halfthickcor) &&
+                            (+x1- +halfthickcor) <= +Math.max(+dx1,+dx2) &&
+                            (+x1+ +halfthickcor) >= +Math.min(+dx1,+dx2)){
+                        if (+y2>=+y1 && +mouse.y <= (+dy1+ +halfthickcor+ +scale) &&
+                                +mouse.y >=  (+dy1- +halfthickcor)){
+//                            console.log("critical for x1=x2 y2>y1");
+                            criticalRegion = true;
+                            linelistH[i].setAttribute('class',"preselectedframe");
+                            if (+x1 > +dx2 || +x1 < +dx1) {
+                                mouse.y = +dy1 + +halfthickcor;
+                            } else {
+                                mouse.y = +dy1 - +halfthickcor;
+                            }
+                        }else if (+y2<=+y1 && +mouse.y <= (+dy1+ +halfthickcor) &&
+                                +mouse.y >=  (+dy1- +halfthickcor- +scale)){
+//                            console.log("critical for x1=x2 y2<y1");
+                            criticalRegion = true;
+                            linelistH[i].setAttribute('class',"preselectedframe");
+                            if (+x1 > +dx2 || +x1 < +dx1) {
+                                mouse.y = +dy1 - +halfthickcor;
+                            }else {
+                                mouse.y = +dy1 + +halfthickcor;
+                            }
+                        }
+                        notstermfromaline = (linelistH[i].getAttribute('id')!="thechosenline");
+//                        console.log("special"+notstermfromaline);
+                        if (notstermfromaline){
+                            if (+x1 > +dx2) {
+                                if (+y2>+y1) {
+                                    makenode(x1, dy1, model, model);
+                                } else {
+                                    makenode(x1, dy1, model+ +90, model+ +90);
+                                }
+                            }else{
+                                if (+y2>+y1) {
+                                    if (+x1 < +dx1+ +maxmarginatend*scale) {
+                                        makenode(x1, dy1, +model+ +90, +model+ +90);
+                                    }else{
+                                        makenode(x1, dy1, +model, +model+ +90);
+                                    }
+                                }else if (+x1 < dx1) {
+                                    makenode(x1, dy1, +model, model);
+                                }else{
+                                    makenode(x1, dy1, +model, +model+ +90);
+                                }
+                            }
+                        }
+                        //create single node at end of lines
+                        if (+x1 > +dx1 && +x1 < +dx2) {
+                            if (notstermfromaline && +y2 >= +y1) {
+                                if (+mouse.y > (+dy1 + +halfthickcor + +scale)) {
+                                    makenode(x1, dy1, +model + 180, "90");
+                                } else {
+                                    removetempnodebyid(x1 + " " + dy1 + " " + ((+model + 180) % 360), true);
+                                }
+                            } else if (notstermfromaline) {
+                                if (+mouse.y < (+dy1 - +halfthickcor - +scale)) {
+                                    makenode(x1, dy1, +model + 180, "270");
+                                } else {
+                                    removetempnodebyid(x1 + " " + dy1 + " " + ((+model + 180) % 360), true);
+                                }
+                            }
+                        }
+                    }else if (+x1<=+dx2+ +2*halfthickcor && +x1>=dx1-2*halfthickcor){
+                        if (+x1 > +dx2) {
+                            if (+y2>+y1) {
+                                removetempnodebyid(x1 + " " + dy1 + " " +model, true);
+                            } else {
+                                removetempnodebyid(x1 + " " + dy1 + " " +(+model+ +90), true);
+                            }
+                        }else{
+                            if (+y2>+y1) {
+                                if (+x1 < +dx1+ +maxmarginatend*scale) {
+                                    removetempnodebyid(x1 + " " + dy1 + " " +(+model+ +90), true);
+                                }else{
+                                    removetempnodebyid(x1 + " " + dy1 + " " + model, true);
+                                }
+                            }else{
+                                removetempnodebyid(x1 + " " + dy1 + " " + model, true);
+                            }
+                        }
+                    }
+                }
+            }
+            if(+y1==+y2 && +x1 != +x2){
+                for (i = 0; i < linelistV.length; i++) {
+                    dx1=linelistV[i].getAttribute('x1');
+                    dy1=linelistV[i].getAttribute('y1');
+                    dx2=linelistV[i].getAttribute('x2');
+                    dy2=linelistV[i].getAttribute('y2');
+                    if (+Math.min(+x1,+x2) <= (+dx1+ +halfthickcor) && 
+                            +Math.max(+x1,+x2) >= (+dx1- +halfthickcor) &&
+                            (+y1- +halfthickcor) <= +Math.max(+dy1,+dy2) && 
+                            (+y1+ +halfthickcor) >= +Math.min(+dy1,+dy2)){
+                        if (+x2>=+x1 && +mouse.x <= (+dx1+ +halfthickcor+ +scale) &&
+                                +mouse.x >=  (+dx1- +halfthickcor)){
+//                            console.log("critical for y1=y2 x2>x1");
+                            criticalRegion = true;
+                            linelistV[i].setAttribute('class',"preselectedframe");
+                            if (+y1 > +dy2 || +y1 < +dy1) {
+                                mouse.x = +dx1 + +halfthickcor;
+                            }else{
+                                mouse.x = +dx1 - +halfthickcor;
+                            }
+                        }else if (+x2<=+x1 && +mouse.x <= (+dx1+ +halfthickcor) &&
+                                    +mouse.x >=  (+dx1- +halfthickcor- +scale)){
+//                            console.log("critical for y1=y2 x2<x1");
+                            criticalRegion = true;
+                            linelistV[i].setAttribute('class',"preselectedframe");
+                            if (+y1 > +dy2 || +y1 < +dy1) {
+                                mouse.x = +dx1 - +halfthickcor;
+                            }else{
+                                mouse.x = +dx1 + +halfthickcor;
+                            }
+                        }
+                        notstermfromaline = (linelistV[i].getAttribute('id')!="thechosenline");
+                        if (notstermfromaline){
+                            if (+y1 > +dy2) {
+                                if (+x2>+x1) {
+                                    makenode(dx1, y1, model, model);
+                                } else {
+                                    makenode(dx1, y1, model+ +270, +model+ +270);
+                                }
+                            }else{
+                                if (+x2>+x1) {
+                                    if (+y1 < dy1) {
+                                        makenode(dx1, y1, +model+ +270, +model+ +270);
+                                    }else{
+                                        makenode(dx1, y1, +model, +model+ +270);
+                                    }
+                                }else if (+y1 < dy1){
+                                    makenode(dx1, y1, model, model);
+                                }else{
+                                    makenode(dx1, y1, +model, +model+ +270);
+                                }
+                            }
+                        }
+                        //only create single node at the end of line
+                        if (+y1>+dy1 && +y1<+dy2) {
+                            if (notstermfromaline && +x2 >= +x1) {
+                                if (+mouse.x > (+dx1 + +halfthickcor + +scale)) {
+                                    makenode(dx1, y1, +model + 180, "270");
+                                } else {
+                                    removetempnodebyid(dx1 + " " + y1 + " " + ((+model + 180) % 360), true);
+                                }
+                            } else if (notstermfromaline) {
+                                if (+mouse.x < (+dx1 - +halfthickcor - +scale)) {
+                                    makenode(dx1, y1, +model + 180, "90");
+                                } else {
+                                    removetempnodebyid(dx1 + " " + y1 + " " + ((+model + 180) % 360), true);
+                                }
+                            }
+                        }
+                    }else if(y1<=+dy2+ +2*halfthickcor && y1>=dy1-2*halfthickcor){
+                        if (+y1 > +dy2) {
+                            if (+x2>+x1) {
+                                removetempnodebyid(dx1 + " " + y1 + " " + model, true);
+                            } else {
+                                removetempnodebyid(dx1 + " " + y1 + " " +(+model+ +270), true);
+                            }
+                        }else{
+                            if (+x2>+x1) {
+                                if (+y1 < dy1) {
+                                    removetempnodebyid(dx1 + " " + y1 + " " +(+model+ +270), true);
+                                }else{
+                                    removetempnodebyid(dx1 + " " + y1 + " " + model, true);
+                                }
+                            }else{
+                                removetempnodebyid(dx1 + " " + y1 + " " + model, true);
+                            }
+                        }
+                    }
+                }
+            }
+            return mouse;
+        }
+        
+        function findilegalnodes(){
+            result = false;
+            nodelstobecheck = document.getElementsByClassName("tobetestednode");
+            if (nodelstobecheck.length < 1){
+                return result;
+            }
+//            console.log("check length "+nodelstobecheck.length);
+            cNode = document.getElementsByClassName("collisionnode");
+            existingnodels = document.getElementsByClassName("node");
+            collisionarray = [];
+            for (m1 = 0; m1 < existingnodels.length; m1++) {
+                collisionarray.push(0);
+            }
+            collisionarray2 = [];
+            for (m2 = 0; m2 < nodelstobecheck.length; m2++) {
+                collisionarray2.push(false);
+            }
+            checkframe = document.getElementsByClassName("frame");
+            framelslength = checkframe.length;
+            collisionarray3 = [];
+            for (m3 = 0; m3 < framelslength; m3++) {
+                collisionarray3.push(false);
+            }
+            boxtobecheck = "";
+            for (k = 0; k < nodelstobecheck.length; k++) {
+                boxtobecheck = getBoundingBoxforNode(nodelstobecheck[k]);
+                nx = nodelstobecheck[k].getAttribute("x");
+                ny = nodelstobecheck[k].getAttribute("y");
+                for (ii = 0; ii < framelslength; ++ii) {
+                    cx1 = Math.min(+checkframe[ii].getAttribute('x1'),+checkframe[ii].getAttribute('x2'));
+                    cy1 = Math.min(+checkframe[ii].getAttribute('y1'),+checkframe[ii].getAttribute('y2'));
+                    cx2 = Math.max(+checkframe[ii].getAttribute("x1"),+checkframe[ii].getAttribute("x2"));
+                    cy2 = Math.max(+checkframe[ii].getAttribute("y1"),+checkframe[ii].getAttribute("y2"));
+                    halfthickx = 0;
+                    halfthicky = halfthickcor;
+                    if (checkframe[ii].getAttribute("name") == "vertical"){
+                        halfthickx = halfthickcor;
+                        halfthicky = 0;
+                    }
+                    if ((!(+nx==+cx1 && +cx1==+cx2 && +ny<=+cy2+ +halfthickcor && +ny>=+cy1- +halfthickcor) && !(+ny==+cy1 && +cy1==+cy2 && +nx>=+cx1- +halfthickcor && +nx<=+cx2+ +halfthickcor)) && 
+                            checktwoRectCollide(boxtobecheck,
+                            {x1:+cx1- +halfthickx,y1:+cy1- +halfthicky,x2:+cx2+ +halfthickx,y2:+cy2+ +halfthicky})){
+//                        console.log(cx1+" "+cy1+" "+cx2+" "+cy2+" "+nx+" "+ny+" "+" "+!(nx==cx1 && cx1==cx2 && ny>=cy1 && ny<=cy2)+" "+
+//                            !(ny==cy1 && cy1==cy2 && nx>=cx1 && nx<=cx2)+" "+checktwoRectCollide(boxtobecheck,
+//                            {x1:+cx1- +halfthickx,y1:+cy1- +halfthicky,x2:+cx2+ +halfthickx,y2:+cy2+ +halfthicky}));
+                        collisionarray2[k] = true;
+                        checkframe[ii].setAttribute('tobe',"bad2");
+                        if (checkframe[ii].getAttribute('ctarget')==null || !(checkframe[ii].getAttribute('ctarget').indexOf(nodelstobecheck[k].getAttribute('id')) > -1)){
+                            checkframe[ii].setAttribute('ctarget',checkframe[ii].getAttribute('ctarget')+nodelstobecheck[k].getAttribute('id')+", ");
+                            checkframe[ii].setAttribute('cCount',+checkframe[ii].getAttribute('cCount')+ +1);
+                        //checkframe[ii].setAttribute('class',"badframe2");
+                        }
+                    }
+                }
+                
+                if (+nodelstobecheck.length > +1){
+                    for (o1 = k; o1 < nodelstobecheck.length; ++o1) {
+                        if (!samenode(nodelstobecheck[o1],nodelstobecheck[k]) &&
+                                checktwoRectCollide(getBoundingBoxforNode(nodelstobecheck[o1]),boxtobecheck)){
+                            updatecollisioninfo(nodelstobecheck[o1],nodelstobecheck[k]);
+                            collisionarray2[k] = true;
+                            collisionarray2[o1] = true;
+                        }
+                    }
+                }
+                nodepassed = document.getElementsByClassName("nodepasstest");
+                for (y = 0; y < nodepassed.length; ) {
+                    if (!samenode(nodepassed[y],nodelstobecheck[k]) && checktwoRectCollide(getBoundingBoxforNode(nodepassed[y]),boxtobecheck)){
+//                        console.log("col in passed");
+                        result = true;
+                        updatecollisioninfo(nodepassed[y],nodelstobecheck[k]);
+                        nodepassed[y].setAttribute('class',"collisionnode");
+                        collisionarray2[k] = true;
+                    }else{
+                        ++y;
+                    }
+                }
+                for (j = 0; j < existingnodels.length; ++j) {
+                    if (checktwoRectCollide(getBoundingBoxforNode(existingnodels[j]),boxtobecheck)){
+                        //console.log("find collition to "+j);
+                        collisionarray2[k] = true;
+                        existingnodels[j].setAttribute('ctarget',existingnodels[j].getAttribute('ctarget')+nodelstobecheck[k].getAttribute('id')+", ");
+                        collisionarray[j]++;
+                    }
+                }
+                for (n = 0; n < cNode.length; n++) {
+                    //if (cNode[n].getAttribute('name') == null){
+                        if (checktwoRectCollide(getBoundingBoxforNode(cNode[n]),boxtobecheck) && 
+                                !samenode(cNode[n],nodelstobecheck[k])){
+                            collisionarray2[k] = true;
+                            if (!(cNode[n].getAttribute('ctarget').indexOf(nodelstobecheck[k].getAttribute('id')) > -1)){
+                                updatecollisioninfo(cNode[n],nodelstobecheck[k]);
+                            }
+                        }
+                    //}
+                }
+                function updatecollisioninfo(node1, node2){
+                    node1.setAttribute('ctarget',node1.getAttribute('ctarget')+node2.getAttribute('id')+", ");
+                    node1.setAttribute('cCount',+node1.getAttribute('cCount')+ +1);
+                    node2.setAttribute('ctarget',node2.getAttribute('ctarget')+node1.getAttribute('id')+", ");
+                    node2.setAttribute('cCount',+node2.getAttribute('cCount')+ +1);
+                }
+            }
+            sb = nodelstobecheck.length;
+            for (p = 0,qq=0; qq < sb;++qq) {
+                if (collisionarray2[qq] !== false){
+//                    console.log("col");
+                    result = true;
+                    nodelstobecheck[p].setAttribute('class',"collisionnode");
+                }else if(collisionarray2[qq] === false){
+                    nodelstobecheck[p].setAttribute('class',"nodepasstest");
+                }
+            }
+            for (p1 = 0,q1=0; p1 < existingnodels.length;++q1) {
+                if (collisionarray[q1] > 0){
+                    existingnodels[p1].setAttribute('cCount',collisionarray[q1]);
+                    existingnodels[p1].setAttribute('class',"collisionnode");
+                    result = true;
+                }else{
+                    ++p1;
+                }
+            }
+            for (p2 = 0; p2 < framelslength;++p2) {
+                if (checkframe[p2] != null && checkframe[p2].getAttribute('tobe') == "bad2"){
+                    result = true;
+                    checkframe[p2].removeAttribute('tobe');
+                    checkframe[p2].setAttribute('class',"badframe2");
+                }
+            }
+            return result;
+        }
+        function samenode(nd1,nd2){
+            return ((+nd1.getAttribute('x')==+nd2.getAttribute('x')) && (+nd1.getAttribute('y')==+nd2.getAttribute('y')));
+        }
+        function getBoundingBoxforNode(nd){
+            d = nd.getAttribute('direction');
+            sx = nd.getAttribute('x');
+            sy = nd.getAttribute('y');
+            switch(d) {
+                case "0":
+                case "360":
+                    x1=+sx- +halfthick;
+                    y1=+sy- +halfthick;
+                    x2=+sx+ +(2.5+halfthick)*scale;
+                    y2=+sy+ +(2.5+halfthick)*scale;
+                    break;
+                case "90":
+                    x1=+sx- +(2.5+halfthick)*scale;
+                    y1=+sy- +halfthick;
+                    x2=+sx+ +halfthick;
+                    y2=+sy+ +(2.5+halfthick)*scale;
+                    break;
+                case "180":
+                    x1=+sx- +(2.5+halfthick)*scale;
+                    y1=+sy- +(2.5+halfthick)*scale;
+                    x2=+sx+ +halfthick;
+                    y2=+sy+ +halfthick;
+                    break;
+                case "270":
+                    x1=+sx- +halfthick;
+                    y1=+sy- +(2.5+halfthick)*scale;
+                    x2=+sx+ +(2.5+halfthick)*scale;
+                    y2=+sy+ +halfthick;
+                    break;
+                default:
+                    alert("unexpected direction value of "+d);
+                    return "";
+            }
+            return {x1:x1,x2:x2,y1:y1,y2:y2};
+        }
+        function removenodeinwrongdirection(line){
+            removebyclass("collisionnode");
+            removebyclass("tobetestednode");
+            removebyclass("nodepasstest");
+            function removebyclass(c){
+                checknode = document.getElementsByClassName(c);
+                for (i = 0; i < checknode.length; i++) {
+                    if (line.getAttribute('x1') == line.getAttribute('x2')){
+                        if (checknode[i].getAttribute('y') == line.getAttribute('y1')){
+                            removetempnodebyid(checknode[i].getAttribute('id'),true);
+                        }
+                    }else if (line.getAttribute('y1') == line.getAttribute('y2')){
+                        if (checknode[i].getAttribute('x') == line.getAttribute('x1')){
+                            removetempnodebyid(checknode[i].getAttribute('id'),true);
+                        }
+                    }
+                }
+            }
+        }
+        
+        function removetempnodebyid(id,flag){       //set flag to disable removing exsiting nodes
+//            console.log("remove "+id);
+            //return;
+            temp = document.getElementById(id);
+            if (temp != null && (!flag || temp.getAttribute('class') != "node")){
+                cN = document.getElementsByClassName("collisionnode");      //get collision node to recover
+                for (i = 0; i < cN.length; i++) {
+                    if (cN[i].getAttribute('ctarget').indexOf(id) > -1){
+                        cN[i].setAttribute('ctarget',cN[i].getAttribute('ctarget').replace(id+", ",""));
+                        cN[i].setAttribute('cCount',+cN[i].getAttribute('cCount')- +1);
+                        if (+cN[i].getAttribute('cCount') == +0){
+                            if(cN[i].getAttribute('name') == "newnode"){
+                                cN[i].setAttribute('class',"tobetestednode");
+                            }else{
+                                cN[i].setAttribute('class',"nodepasstest");
+                            }
+                            --i;
+                        }
+                    }
+                }
+                
+                cL = document.getElementsByClassName("badframe2");
+                cll = cL.length;
+                
+                for (j = 0; j < cL.length;) {
+                    if (cL[j].getAttribute('ctarget') != null && cL[j].getAttribute('ctarget').indexOf(id) > -1){
+                        cL[j].setAttribute('ctarget',cL[j].getAttribute('ctarget').replace(id+", ",""));
+                        cL[j].setAttribute('cCount',+cL[j].getAttribute('cCount')- +1);
+                        if (+cL[j].getAttribute('cCount') == +0){
+                            cL[j].setAttribute('class',"frame");
+                            j--;
+                        }
+                    }
+                    j++;
+                }
+                
+                document.getElementById("node").removeChild(temp);
+            }
+        }
+        function updatemateriallist(line){
+            var numberofbrackets = document.getElementsByClassName("node").length * 2;
+            var tableentry = document.getElementById("bracket");
+            var tableentry2 = document.getElementById("screw");
+            var tableentry3 = document.getElementById("anchor");
+
+            if (numberofbrackets>0  && tableentry!=null){
+                tableentry.cells.item(2).innerHTML = numberofbrackets;
+                tableentry2.cells.item(2).innerHTML = numberofbrackets*screwRatial;
+                tableentry3.cells.item(2).innerHTML = numberofbrackets*anchorRatial;
+            }
+            if (numberofbrackets==0  && tableentry!=null){
+                tableentry.parentNode.removeChild(tableentry);
+                tableentry2.parentNode.removeChild(tableentry2);
+                tableentry3.parentNode.removeChild(tableentry3);
+            }
+            if (line == undefined){
+                return;
+            }
+            table = document.getElementById("MaterialList");
+
+            width = line.getAttribute("width");
+            material = line.getAttribute("material");
+            thickness = line.getAttribute("thickness");
+            if (width == null){
+                width = 4;
+            }
+            if (tableentry == null && numberofbrackets>0){
+                row = table.insertRow(1);
+                row.setAttribute('id',"bracket");
+                cell1 = row.insertCell(0);
+                cell1.innerHTML = "Brackets";
+                cell2 = row.insertCell(1);
+                cell2.innerHTML = "4LTX-model-1";
+                cell3 = row.insertCell(2);
+                cell3.innerHTML = numberofbrackets;
+                
+                row = table.insertRow(2);
+                row.setAttribute('id',"screw");
+                cell1 = row.insertCell(0);
+                cell1.innerHTML = "Screws";
+                cell2 = row.insertCell(1);
+                cell2.innerHTML = "xx*xx = xx*xx";
+                cell3 = row.insertCell(2);
+                cell3.innerHTML = numberofbrackets*screwRatial;
+
+                row = table.insertRow(3);
+                row.setAttribute('id',"anchor");
+                cell1 = row.insertCell(0);
+                cell1.innerHTML = "Anchors";
+                cell2 = row.insertCell(1);
+                cell2.innerHTML = "xx*xx = xx*xx";
+                cell3 = row.insertCell(2);
+                cell3.innerHTML = numberofbrackets*anchorRatial;
+
+            }
+            tableentry = document.getElementById(getlinelength(line)+" "+thickness+" "+width+" "+material);
+            if (tableentry == null){
+                numberofrow = table.rows.length;
+                row = table.insertRow(numberofrow);
+                row.setAttribute('id',getlinelength(line)+" "+thickness+" "+width+" "+material);
+                row.setAttribute('onmouseover',"selectedrows()");
+                row.setAttribute('onmouseout',"deselectedrows()");
+                row.setAttribute('frame',line.getAttribute('id'));
+                cell1 = row.insertCell(0);
+                cell1.innerHTML = "Boards";
+                cell2 = row.insertCell(1);
+                cell2.innerHTML = "Length*Thickness*Width(inches): "+getlinelength(line)+"*"+thickness+"*"+width+";"+" Material: "+
+                        material;
+                cell3 = row.insertCell(2);
+                cell3.innerHTML = 1;
+            }else if(tableentry != null){
+                tableentry.cells.item(2).innerHTML = +tableentry.cells.item(2).innerHTML+ +1;
+            }
+        }
+        function getlinelength(line){
+            return (Math.max(+line.getAttribute('x2')- +line.getAttribute('x1'), +line.getAttribute('y2')- +line.getAttribute('y1'))/scale).toFixed(1);
+        }
+        function removematerial(line){
+            updatemateriallist();
+            group = line.parentNode;
+            width = line.getAttribute("width");
+            thickness = line.getAttribute("thickness");
+            material = line.getAttribute("material");
+            length = getlinelength(line);
+            tableentry = document.getElementById(length+" "+thickness+" "+width+" "+material);
+            //console.log(length+" "+thickness+" "+width+" "+material+" "+tableentry);
+            if (tableentry != null){
+                if (+tableentry.cells.item(2).innerHTML == +1){
+                    tableentry.parentNode.removeChild(tableentry);
+                }else {
+                    tableentry.cells.item(2).innerHTML = +tableentry.cells.item(2).innerHTML- +1;
+                }
+            }
+        }
+        function selectedrows(){
+            var temp11 = event.target.parentNode.getAttribute('frame');
+            if (temp11 != null){
+                document.getElementById(event.target.parentNode.getAttribute('frame')).setAttribute('class',"highlightframe");
+            }
+        }
+        function deselectedrows(){
+            var temp12 = event.target.parentNode.getAttribute('frame');
+            if (temp12 != null){
+                document.getElementById(event.target.parentNode.getAttribute('frame')).setAttribute('class',"frame");
+            }
+        }
+        function setCanvasSize(){
+            if (document.getElementById('wob').value == ""){
+                document.getElementById('width').value = 4;
+            }else {
+                document.getElementById('width').value = document.getElementById('wob').value;
+            }
+            wallWidth = document.getElementById('WallSizew').value;
+            wallHeight = document.getElementById('WallSizeh').value;
+            if (wallWidth == ""){
+                wallWidth = 10;
+            }
+            wallWidth = wallWidth*12;
+            if (wallHeight == ""){
+                wallHeight = 5;
+            }
+            wallHeight = wallHeight*12;
+            var designplot = document.getElementById('DesignPlot');
+            widthofdesign = designplot.getAttribute('width');
+            heightofdesign = designplot.getAttribute('width').replace("px","")*wallHeight/wallWidth+"px";
+            scale = designplot.getAttribute('width').replace("px","")/wallWidth;
+            halfthickcor = halfthick*scale;
+            mingap = 0.5*0.75*scale+2*halfthickcor;
+            lineendmargin = 2*scale;
+            minlength = scale;
+            designplot.setAttribute('height',heightofdesign);
+            designplot.getElementById('boundary').setAttribute('height',heightofdesign);
+            designplot.getElementById('boundary').setAttribute('width',widthofdesign);
+        }
+
+
+	</script>
+</head>
+<body onload = "document.getElementById('showmodal1').click();">
+
+<!--biaoji-->
+<noscript>Please enable JavaScript support in your browser! </noscript>
+
+
+  <a id="showmodal1" href="#openModal" class="modallink"></a>
+  <div id="openModal" class="modalWindow">
+      <div>
+          <div class="modalHeader">
+              <h2>Settings</h2>
+              <a href="#close" title="Close" class="close">X</a>
+          </div>
+
+          <div class="modalContent">
+              <div>
+                  <label for="wob">Width of Boards(inches): </label>
+                  <input class="inputfield" type="number" id="wob" value="" min="0" max="99" step="0.1"/>
+              </div>
+              <div>
+                  <label for="WallSizew">WallSize(Width*Hight(inches)): </label>
+                  <input class="inputfield" type="number" id="WallSizew" value="" min="0" max="99" step="0.1"/>
+                  <input class="inputfield" type="number" id="WallSizeh" value="" min="0" max="99" step="0.1"/>
+              </div>
+
+          </div>
+
+          <div class="modalFooter">
+              <a href="#cancel" title="Cancel" class="cancel">Cancel</a>
+              <a href="#ok" title="Ok" class="ok" onclick="setCanvasSize();" type="submit" >Ok</a>
+              <p>Deault wall size is 10' * 5'. Once width of boards is set, it cannot be changed during the design.</p>
+              <div class="clear"></div>
+          </div>
+      </div>
+  </div>
+
+
+
+  <div align="center" id="LTXDesign" >
+      <svg id="DesignPlot" width="800px" height="500px" onmousedown="signalDrawingflag()"
+                onmouseup="fireEvent()" onmousemove="drawing(event)" oncontextmenu="return false;">
+        <rect x="0" y="0" fill="white" stroke="black" stroke-width="5" id="boundary"> </rect>
+        <text id="msg1" x="5" y="15" fill="red"> </text>
+        <text id="msg2" x="5" y="35" fill="red"> </text>
+        <g id="plates" > </g>
+        <g id="node" > </g>
+      </svg>
+      <table id="MaterialList" border="2" style="width:700px visibility:hidden">
+        <tr>
+            <th>Name</th>
+            <th>Spec.</th> 
+            <th>Amount</th>
+        </tr>
+      </table>
+  </div>
+  
+<select id="materialSelection">
+  <optgroup label="Woods">
+    <option value="wood_1">wood_1</option>
+    <option value="wood_2">wood_2</option>
+  </optgroup>
+  <optgroup label="Metal">
+    <option value="metal_1">metal_1</option>
+    <option value="metal_2">metal_2</option>
+  </optgroup>
+  <optgroup label="Synthetic">
+    <option value="synthetic_1">synthetic_1</option>
+    <option value="synthetic_2">synthetic_2</option>
+  </optgroup>
+</select>
+
+<a id="showmodal2" href="#Visualization" class="modallink"></a>
+<div id="Visualization" class="framevisualization" ondblclick="updatemouselocation()" >
+    <div id="VisualizationContainer" style="top:0;left:0;height:800;width:600;float:left;"></div>
+    <a href="#close" title="Close" class="close" onclick="CloseVisualization()">X</a>
+    </div>
+
+</div>
+
+
+
+Width of the board(inches): <input type="number" id="width" value="" disabled>
+<a class="css_button" onclick="generate3D()">Generate 3D</a>
+
+  <br>
+  <br>
+  <br>
+
+  
+<div>
+    <textarea id="log2" rows="4" cols="50"> </textarea>
+    <textarea id="log3" rows="4" cols="50"> </textarea>
+</div>
+
+  
+
+
+  
+  
+  
+ 
+
+
+
+</body>
+</html>
