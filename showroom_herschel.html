@@ -1,0 +1,63 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <title>4LTX Designers' Showroom</title>
+  <meta name="description" content="The 4LTX Bracket is a Strong, Simple Solution for Easy Building. Utilizing decades of industry experience, we partner with our clients to create customized solutions that resolve their most significant issues and create flexible and sustainable solutions." />
+  <meta name="keywords" content="4LTX, brackets, DIY" />
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+  <link rel="stylesheet" type="text/css" href="css/style.css" />
+  <!-- modernizr enables HTML5 elements and feature detects -->
+  <script type="text/javascript" src="js/modernizr-1.5.min.js"></script>
+</head>
+
+<body>
+  <div id="main">
+    <header>
+      <div id="logo"><h1><a href="index.html"><img src="images/logo.jpg" alt="4LTX" /></a></h1></div>
+      <nav>
+        <ul class="lavaLampWithImage" id="lava_menu">
+		  <li><a href="index.html">home</a></li>
+          <li><a href="create.html" target="_blank">create a design</a></li>		  
+          <li><a href="getinvolved.html">get involved</a></li>
+          <li class="current"><a href="designershowroom.html">designers' showroom</a></li>
+          <li><a href="videos.html">videos</a></li>
+          <li><a href="contact.php">contact</a></li>
+        </ul>
+      </nav>
+    </header>
+	<p class="pos_fixed">Email Designer for More Information: <a href="mailto:kelly@127.0.0.1">Kelly</a></p>
+	<div id="showroom">
+	<h1>"At age 52, I still maintain my Adonis-like body. I need space to work out. I dislike clutter and strive for open space concepts..." -Herschel</h1>
+	</div>
+	<div class="showroomtable">
+		<div class="column first"><img src="images/herschel1.jpg" width="400" height="240">&nbsp;<img src="images/likes_herschel1.png">&nbsp;<img src="images/likebutton.jpg"></div>
+		<div class="column"><img src="images/herschel2.jpg" width="400" height="240">&nbsp;<img src="images/likes_herschel2.png">&nbsp;<img src="images/likebutton.jpg"></div>
+	</div>
+    <footer>
+      <p>&copy; 2014 4LTX. All Rights Reserved.</p>
+    </footer>
+  </div>
+  <!-- javascript at the bottom for fast page loading -->
+  <script type="text/javascript" src="js/jquery.min.js"></script>
+  <script type="text/javascript" src="js/jquery.easing.min.js"></script>
+  <script type="text/javascript" src="js/jquery.lavalamp.min.js"></script>
+  <script type="text/javascript" src="js/jquery.kwicks-1.5.1.js"></script>
+  <script type="text/javascript">
+    $(document).ready(function() {
+      $('#images').kwicks({
+        max : 400,
+        spacing : 2
+      });
+    });
+  </script>
+  <script type="text/javascript">
+    $(function() {
+      $("#lava_menu").lavaLamp({
+        fx: "backout",
+        speed: 700
+      });
+    });
+  </script>
+</body>
+</html>

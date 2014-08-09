@@ -1,0 +1,79 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <title>4LTX Videos</title>
+  <meta name="description" content="The 4LTX Bracket is a Strong, Simple Solution for Easy Building. Utilizing decades of industry experience, we partner with our clients to create customized solutions that resolve their most significant issues and create flexible and sustainable solutions." />
+  <meta name="keywords" content="4LTX, brackets, DIY" />
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+  <link rel="stylesheet" type="text/css" href="css/style.css" />
+  <!-- modernizr enables HTML5 elements and feature detects -->
+  <script type="text/javascript" src="js/modernizr-1.5.min.js"></script>
+</head>
+
+<body>
+  <div id="main">
+    <header>
+      <div id="logo"><h1><a href="index.html"><img src="images/logo.jpg" alt="4LTX" /></a></h1></div>
+      <nav>
+        <ul class="lavaLampWithImage" id="lava_menu">
+		  <li><a href="index.html">home</a></li>
+          <li><a href="create.html" target="_blank">create a design</a></li>		  
+          <li><a href="getinvolved.html">get involved</a></li>
+          <li><a href="designershowroom.html">showroom</a></li>
+          <li><a href="contact.php">buy and contact</a></li>		  
+          <li class="current"><a href="videos.html">videos</a></li>
+        </ul>
+      </nav>
+    </header>
+    <div id="site_content">
+      <ul id="images">
+        <li><img src="images/1.jpg" width="600" height="300" alt="photo_one" /></li>
+        <li><img src="images/2.jpg" width="600" height="300" alt="photo_two" /></li>
+        <li><img src="images/3.jpg" width="600" height="300" alt="photo_three" /></li>
+        <li><img src="images/4.jpg" width="600" height="300" alt="photo_four" /></li>
+        <li><img src="images/5.jpg" width="600" height="300" alt="photo_five" /></li>
+        <li><img src="images/6.jpg" width="600" height="300" alt="photo_six" /></li>
+      </ul>
+      <div id="content">
+        <h1>Videos</h1>
+		<table xmlns="http://www.w3.org/1999/xhtml" cellspacing="10" cellpadding="0" border="0">
+			<tbody>
+				<tr>
+					<td><iframe id="ytplayer" type="text/html" width="425" height="355" frameborder="0" src="http://www.youtube.com/embed/Qv8G_WuJK7Y?rel=0&amp;wmode=opaque" frameborder="0" allowFullScreen="true"></iframe></td>
+					<td><iframe id="ytplayer" type="text/html" width="425" height="355" frameborder="0" src="http://www.youtube.com/embed/Srpr1zuBUYY?rel=0&amp;wmode=opaque" frameborder="0" allowFullScreen="true"></iframe></td>
+				</tr>
+				<tr>
+					<td><iframe id="ytplayer" type="text/html" width="425" height="355" frameborder="0" src="http://www.youtube.com/embed/Q6snSsk1UnQ?rel=0&amp;wmode=opaque" frameborder="0" allowFullScreen="true"></iframe></td>
+				</tr>
+			</tbody>
+		</table>
+	  </div>
+    </div>
+    <footer>
+      <p>&copy; 2014 4LTX. All Rights Reserved.</p>
+    </footer>
+  </div>
+  <!-- javascript at the bottom for fast page loading -->
+  <script type="text/javascript" src="js/jquery.min.js"></script>
+  <script type="text/javascript" src="js/jquery.easing.min.js"></script>
+  <script type="text/javascript" src="js/jquery.lavalamp.min.js"></script>
+  <script type="text/javascript" src="js/jquery.kwicks-1.5.1.js"></script>
+  <script type="text/javascript">
+    $(document).ready(function() {
+      $('#images').kwicks({
+        max : 600,
+        spacing : 2
+      });
+    });
+  </script>
+  <script type="text/javascript">
+    $(function() {
+      $("#lava_menu").lavaLamp({
+        fx: "backout",
+        speed: 700
+      });
+    });
+  </script>
+</body>
+</html>
