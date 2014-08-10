@@ -258,24 +258,14 @@ p.pos_fixed {
 .drawing {
     stroke-opacity:     0.5;
     stroke:             black;
+    pointer-events:     none;
 }
 .waitforsplit{
-    stroke-opacity:     0.3;
+    opacity:            0.9;
     stroke-width:       7.5;
     stroke:             blue;
-    -webkit-animation-name: lineanimation2;
-    -webkit-animation-duration: 0.8s;
-    -webkit-animation-timing-function: linear;
-    -webkit-animation-iteration-count: infinite;
-    -webkit-animation-direction: alternate;
-    -webkit-animation-play-state: running;
-    /* Standard syntax */
-    animation-name: lineanimation2;
-    animation-duration: 0.8s;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
-    animation-direction: alternate;
-    animation-play-state: running;
+    animation: lineanimation2 0.8s infinite;
+    -webkit-animation: lineanimation2 0.8s infinite;
 }
 .highlightframe{
     stroke-opacity:     0.3;
@@ -317,12 +307,19 @@ p.pos_fixed {
 }
 /* Chrome, Safari, Opera */
 @-webkit-keyframes lineanimation2 {
-    0%   {stroke-opacity:0.3;}
-    50%  {stroke-opacity:0.9;}
-    100% {stroke-opacity:0.3;}
+    0%   {opacity:0.3;}
+    50%  {opacity:0.9;}
+    100% {opacity:0.3;}
+}
+@keyframes lineanimation2 {
+    0%   {opacity:0.3;}
+    50%  {opacity:0.9;}
+    100% {opacity:0.3;}
 }
 
 .thisline, #thechosenline{
+    stroke:#B20000;
+    stroke-width:10;
     -webkit-animation-name: lineanimation1;
     -webkit-animation-duration: 0.1s;
     -webkit-animation-timing-function: ease-in;
@@ -334,6 +331,8 @@ p.pos_fixed {
     animation-fill-mode: forwards;
 }
 .preselectedframe{
+    stroke:#B20000;
+    stroke-width:10;
     -webkit-animation-name: lineanimation1;
     -webkit-animation-duration: 0.1s;
     -webkit-animation-timing-function: ease-in;
@@ -346,8 +345,12 @@ p.pos_fixed {
 }
 /* Chrome, Safari, Opera */
 @-webkit-keyframes lineanimation1 {
-    from {stroke-width:7.5;stroke:black;stroke-opacity:0.5;}
-    to   {stroke-width:10;stroke:#B20000;stroke-opacity:0.5;}
+    from {stroke-width:7.5;stroke:black;opacity:0.5;}
+    to   {stroke-width:10;stroke:#B20000;opacity:0.5;}
+}
+@keyframes lineanimation1 {
+    from {stroke-width:7.5;stroke:black;opacity:0.5;}
+    to   {stroke-width:10;stroke:#B20000;opacity:0.5;}
 }
 .shadow{
     stroke-width:       3;
@@ -373,6 +376,7 @@ p.pos_fixed {
 .deliminator{
     stroke-width:       0.5;
     stroke:             #FF3300;
+    pointer-events:     none;
 }
 #LTXDesign{
     overflow:           hidden;
@@ -427,6 +431,11 @@ p.pos_fixed {
     50%  {fill-opacity:0.9;}
     100% {fill-opacity:0.3;}
 }
+@keyframes nodeanimation {
+     0%   {fill-opacity:0.3;}
+     50%  {fill-opacity:0.9;}
+     100% {fill-opacity:0.3;}
+ }
 #node{
     fill:               #000099;
     fill-opacity:       0.3;

@@ -46,33 +46,44 @@
       var mingap;
       var lineendmargin;
       var newmeterlinesplit, newdeliminator1split, newdeliminator2split, newmetersplit;
+      var lastpt;
 
 
   </script>
+  <script src="js/IE_Methods.js"></script>
   <script src="js/three.min.js"></script>
   <script src="js/3DDisplay.js"></script>
   <script src="js/OrbitandPanelControl.js"></script>
   <script src="js/StartPointSelfAdjustment.js"></script>
   <script src="js/CollisionDetection.js"></script>
   <script>
+//        function cursorPoint(evt){
+//            var svg1  = evt.currentTarget;
+//            if (svg1 === undefined){
+//                return;
+//            }
+////            console.log(svg1);
+//            pt1   = svg1.createSVGPoint();
+//            pt1.x = evt.clientX; pt1.y = evt.clientY;
+//            return pt1.matrixTransform(svg1.getScreenCTM().inverse());
+//        }
         function cursorPoint(evt){
-            svg1  = evt.currentTarget;
-            pt1   = svg1.createSVGPoint();
-            pt1.x = evt.clientX; pt1.y = evt.clientY;
-            return pt1.matrixTransform(svg1.getScreenCTM().inverse());
+            return {x: +evt.pageX- +document.getElementById('DesignPlot').offsetLeft,
+                y: +evt.pageY- +document.getElementById('DesignPlot').offsetTop}
         }
 //The following two functions facilitates mobile device's drawing mechanism.
-        function signalDrawingflag() {
+        function signalDrawingflag(evt) {
             //delete creation if click right button
-            if (event.button == 2 || event.button == 3) {
+            if (evt.button == 2 || evt.button == 3) {
 //                console.log(event.button);
-                event.preventDefault();
-                event.stopPropagation();
                 drawingflag = false;
                 dedrawingflag = false;
                 prematureending = true;
             } else if(!needsplit){
+                originco = cursorPoint(evt);
+                lastpt = cursorPoint(evt);
                 //make sure that nodes can be flipped
+//                document.getElementById('log2').value = evt.pageX+" "+document.getElementById('DesignPlot').offsetLeft;
                 if (checkonNode(originco.x, originco.y)){
                     onnodecreate = true;
                     return;
@@ -83,31 +94,36 @@
                 if (!dedrawingflag) {
 
                     //record click time to detect deletion
-                    deletiontimestamp = event.timeStamp;
+                    deletiontimestamp = evt.timeStamp;
 
                     drawingflag = true;
-                    makealignment(cursorPoint(event));
+                    makealignment(cursorPoint(evt));
                 } else {
                     //compare two consecutive click, if difference is less than 300ms then delete this line.
-                    if (event.timeStamp < deletiontimestamp+300){
-                        deleteline(event.target);
+                    if (evt.timeStamp < deletiontimestamp+300){
+                        deletealignment();
+                        deleteline(evt.target);
+
                     }
 
                     drawingflag = false;
                 }
+            } else if (needsplit){
+                if (evt.target.getAttribute('class') == "waitforsplit"){
+                    splitline(evt.target);
+                }
             }
-//            event.stopPropagation();
         }
         //canvas mouseup
-        function fireEvent(){
+        function fireEvent(evt){
             if (drawingflag){
-                createline(event);
+                createline(evt);
                 skipcheckmeter = false;
                 dedrawingflag = true;
             } else if (!needsplit){
-                endcreation(event);
-                eventtimestamp = event.timeStamp;
-                event="";
+                endcreation(evt);
+                eventtimestamp = evt.timeStamp;
+                //event="";
                 dedrawingflag = false;
                 deletealignment();
             }
@@ -119,33 +135,33 @@
                 return;
             }
             originco = cursorPoint(evt);
-            if (document.getElementsByClassName('alignment').length !== 0){
-                originco = lineautodetection(originco, "frame", 2*halfthickcor, halfthickcor);
-            }
 
+            if (document.querySelectorAll('.alignment').length !== 0){
+                lastpt = lineautodetection(lastpt, "frame", 2*halfthickcor, halfthickcor);
+            }
+            document.getElementById('log2').value = lastpt.x+" "+lastpt.y;
             mousehold = true;
-            svg = evt.currentTarget;
             newgroup = document.createElementNS("http://www.w3.org/2000/svg",'g');
-            newgroup.setAttribute('class',"frameholder")
-            svg.getElementById("plates").appendChild(newgroup);
+            newgroup.setAttribute('class',"frameholder");
+            document.getElementById("plates").appendChild(newgroup);
             newline = document.createElementNS("http://www.w3.org/2000/svg",'line');
             newline.setAttribute('class',"drawing");
             shadowline = document.createElementNS("http://www.w3.org/2000/svg",'line');
             shadowline.setAttribute('class',"shadow");
             //originco = cursorPoint(evt);
-            relocatecursortoendofline(originco,lineendmargin);
-            newline.setAttribute('x1',originco.x);
-            newline.setAttribute('y1',originco.y);
-            newline.setAttribute('x2',originco.x);
-            newline.setAttribute('y2',originco.y);
+            relocatecursortoendofline(lastpt,lineendmargin);
+            newline.setAttribute('x1',lastpt.x);
+            newline.setAttribute('y1',lastpt.y);
+            newline.setAttribute('x2',lastpt.x);
+            newline.setAttribute('y2',lastpt.y);
             newline.setAttribute('width',document.getElementById("width").value);
             mlist = document.getElementById("materialSelection");
             newline.setAttribute('material',mlist.options[mlist.selectedIndex].innerHTML);
             newline.setAttribute('thickness',platethickness);
-            shadowline.setAttribute('x1',originco.x);
-            shadowline.setAttribute('y1',originco.y);
-            shadowline.setAttribute('x2',originco.x);
-            shadowline.setAttribute('y2',originco.y);
+            shadowline.setAttribute('x1',lastpt.x);
+            shadowline.setAttribute('y1',lastpt.y);
+            shadowline.setAttribute('x2',lastpt.x);
+            shadowline.setAttribute('y2',lastpt.y);
             newline.setAttribute('stroke-width',2*halfthickcor);
 
             newgroup.appendChild(newline);
@@ -153,7 +169,7 @@
             createmeter(newgroup);
             linelistH = document.getElementsByName("horizontal");
             linelistV = document.getElementsByName("vertical");
-
+            lastpt = "";
 
         }
         function relocatecursortoendofline(mouse,margin){
@@ -161,7 +177,7 @@
             if (sourceline == null){
                 return mouse;
             }
-            
+
             x1 = +Math.min(+sourceline.getAttribute('x1'),+sourceline.getAttribute('x2'));
             y1 = +Math.min(+sourceline.getAttribute('y1'),+sourceline.getAttribute('y2'));
             x2 = +Math.max(+sourceline.getAttribute('x1'),+sourceline.getAttribute('x2'));
@@ -229,10 +245,15 @@
             group.appendChild(newdeliminator2);
         }
         function drawing(evt){
-            originco = cursorPoint(evt);
-            document.getElementById('log3').value = originco.x+" "+originco.y;
-            //if (mousehold && !needsplit){dedrawingflag
-            if (document.getElementsByClassName('alignment').length !== 0){
+            evt.preventDefault();
+//            if (originco === undefined){
+//                return;
+//            }
+//            document.getElementById('log3').value = originco.x+" "+originco.y;
+//            //if (mousehold && !needsplit){dedrawingflag
+            if (document.querySelectorAll('.alignment').length !== 0){
+                originco = cursorPoint(evt);
+                lastpt = cursorPoint(evt);
                 if (dedrawingflag) {
                     lineautodetection(originco, "frame", 2 * halfthickcor, halfthickcor, "precise");
                 }else{
@@ -244,7 +265,7 @@
 
             if (dedrawingflag && !needsplit){
                 prematureending = false;
-                document.getElementById('log2').value = "drawing";
+//                document.getElementById('log2').value = "drawing";
                 //originco = cursorPoint(evt);
                 function checkstartpoint(){
                     x1 = sourceline.getAttribute('x1');
@@ -293,7 +314,7 @@
                                 removetempnodebyid(x1+" "+sy2+" "+model2,true);
                             }
                         }
-                        
+
                     }else if(+y1 == +y2 && +sy1 != +sy2){
                         model1 = "0";
                         model2 = "270";
@@ -330,16 +351,16 @@
                         }
                     }
                 }
-                
+
                 sourceline = document.getElementById("thechosenline");
                 if (sourceline != null){
                     checkstartpoint();
                 }
-                
+
                 originco = findintersection(shadowline,originco);
                 //criticalregion is set when mouse moves on the line
                 if (!criticalRegion || sourceline != null || enteronce){
-                    
+
                     if (criticalRegion){
                         enteronce = false;
                     }else{
@@ -351,7 +372,7 @@
                     }
                     newline.setAttribute('x2',originco.x);
                     newline.setAttribute('y2',originco.y);
-                    if (Math.abs(shadowline.getAttribute('x1')-originco.x) 
+                    if (Math.abs(shadowline.getAttribute('x1')-originco.x)
                         <= Math.abs(shadowline.getAttribute('y1')-originco.y)){
                         shadowline.setAttribute('x2',shadowline.getAttribute('x1'));
                         shadowline.setAttribute('y2',originco.y);
@@ -435,10 +456,12 @@
         }
 
 
-        function splitline(){
+        function splitline(line){
             if (event.timeStamp > +eventtimestamp+ +50) {
                 var lineid;
-                var line = event.target;
+                if (line == null) {
+                    var line = event.target;
+                }
                 removematerial(line);
                 var x1 = line.getAttribute('x1');
                 var y1 = line.getAttribute('y1');
@@ -563,7 +586,7 @@
 
         }
         function checksplitmeter(splittingline, lineid, parentl, parenth, newlineid) {
-            var meterslinels = document.getElementsByClassName('metersline');
+            var meterslinels = document.querySelectorAll('.metersline');
             if (parentl == undefined) {
                 for (var i = 0; i < meterslinels.length; ++i) {
                     if (meterslinels[i].getAttribute('direction') !== splittingline.getAttribute('name')) {
@@ -649,7 +672,7 @@
                 setmeterid(newmeter, newmeterline, newd1, newd2, newlineid);
                 metersline.setAttribute('splittedby',splittingline.getAttribute('id')+",");
                 metersline.setAttribute('mergeondeletion',newmeterline.getAttribute('id'));
-                var meterlinels = document.getElementsByClassName('metersline');
+                var meterlinels = document.querySelectorAll('.metersline');
                 for (var i=0;i<meterlinels.length;++i) {
                     if (meterlinels[i].getAttribute('mergeondeletion') === meterlineid) {
                         meterlinels[i].setAttribute('mergeondeletion', metersline.getAttribute('id'));
@@ -658,7 +681,8 @@
             }
         }
         function deleteline(obj){
-            console.log("attempt deletion "+obj.getAttribute('x1')+ " "+obj.getAttribute('y1')+" "+obj.getAttribute('x2')+ " "+obj.getAttribute('y2'));
+//            console.log(obj);
+//            console.log("attempt deletion "+obj.getAttribute('x1')+ " "+obj.getAttribute('y1')+" "+obj.getAttribute('x2')+ " "+obj.getAttribute('y2'));
             if (obj.getAttribute('class') !== "thisline" && obj.getAttribute('class') !== "frame" &&
                     obj.getAttribute('class') !== "waitforsplit" && obj.getAttribute('class') !== "drawing"){
                 return;
@@ -828,14 +852,14 @@
                 }
             }
             temp1 = document.getElementById("plates");
-            
+
             if (prematureending){
                 prematureending = false;
                 deletetempnode();
                 deleteeverything();
                 return;
             }
-            
+
             if (document.getElementsByClassName("illegalline").length>0 ||
                 document.getElementsByClassName("collisionnode").length>0){
                 deletetempnode();
@@ -1030,7 +1054,7 @@
                 l = (x1-x2)/2;
                 length = Math.abs(l);
                 x = +x2 + +l;
-            }                 
+            }
             if (x1 == x2){
                 meterline.setAttribute('x1',x1-meteroffset-7);
                 meterline.setAttribute('y1',y1);
@@ -1117,7 +1141,7 @@
                 direction2 = node2.getAttribute('altmodel');
                 removetempnodebyid(node2.getAttribute('id'),false);
                 makenode(x,y,direction2,temp2).removeAttribute("name");
-                
+
             }
             findilegalnodes();
             cleartempnode();
@@ -1139,7 +1163,7 @@
                     dy1=linelistH[i].getAttribute('y1');
                     dx2=linelistH[i].getAttribute('x2');
                     dy2=linelistH[i].getAttribute('y2');
-                    if (+Math.min(+y1,+y2) <= (+dy1+ +halfthickcor) && 
+                    if (+Math.min(+y1,+y2) <= (+dy1+ +halfthickcor) &&
                             +Math.max(+y1,+y2) >= (+dy1- +halfthickcor) &&
                             (+x1- +halfthickcor) <= +Math.max(+dx1,+dx2) &&
                             (+x1+ +halfthickcor) >= +Math.min(+dx1,+dx2)){
@@ -1230,9 +1254,9 @@
                     dy1=linelistV[i].getAttribute('y1');
                     dx2=linelistV[i].getAttribute('x2');
                     dy2=linelistV[i].getAttribute('y2');
-                    if (+Math.min(+x1,+x2) <= (+dx1+ +halfthickcor) && 
+                    if (+Math.min(+x1,+x2) <= (+dx1+ +halfthickcor) &&
                             +Math.max(+x1,+x2) >= (+dx1- +halfthickcor) &&
-                            (+y1- +halfthickcor) <= +Math.max(+dy1,+dy2) && 
+                            (+y1- +halfthickcor) <= +Math.max(+dy1,+dy2) &&
                             (+y1+ +halfthickcor) >= +Math.min(+dy1,+dy2)){
                         if (+x2>=+x1 && +mouse.x <= (+dx1+ +halfthickcor+ +scale) &&
                                 +mouse.x >=  (+dx1- +halfthickcor)){
@@ -1316,7 +1340,7 @@
             }
             return mouse;
         }
-        
+
         function findilegalnodes(){
             result = false;
             nodelstobecheck = document.getElementsByClassName("tobetestednode");
@@ -1356,7 +1380,7 @@
                         halfthickx = halfthickcor;
                         halfthicky = 0;
                     }
-                    if ((!(+nx==+cx1 && +cx1==+cx2 && +ny<=+cy2+ +halfthickcor && +ny>=+cy1- +halfthickcor) && !(+ny==+cy1 && +cy1==+cy2 && +nx>=+cx1- +halfthickcor && +nx<=+cx2+ +halfthickcor)) && 
+                    if ((!(+nx==+cx1 && +cx1==+cx2 && +ny<=+cy2+ +halfthickcor && +ny>=+cy1- +halfthickcor) && !(+ny==+cy1 && +cy1==+cy2 && +nx>=+cx1- +halfthickcor && +nx<=+cx2+ +halfthickcor)) &&
                             checktwoRectCollide(boxtobecheck,
                             {x1:+cx1- +halfthickx,y1:+cy1- +halfthicky,x2:+cx2+ +halfthickx,y2:+cy2+ +halfthicky})){
 //                        console.log(cx1+" "+cy1+" "+cx2+" "+cy2+" "+nx+" "+ny+" "+" "+!(nx==cx1 && cx1==cx2 && ny>=cy1 && ny<=cy2)+" "+
@@ -1371,7 +1395,7 @@
                         }
                     }
                 }
-                
+
                 if (+nodelstobecheck.length > +1){
                     for (o1 = k; o1 < nodelstobecheck.length; ++o1) {
                         if (!samenode(nodelstobecheck[o1],nodelstobecheck[k]) &&
@@ -1404,7 +1428,7 @@
                 }
                 for (n = 0; n < cNode.length; n++) {
                     //if (cNode[n].getAttribute('name') == null){
-                        if (checktwoRectCollide(getBoundingBoxforNode(cNode[n]),boxtobecheck) && 
+                        if (checktwoRectCollide(getBoundingBoxforNode(cNode[n]),boxtobecheck) &&
                                 !samenode(cNode[n],nodelstobecheck[k])){
                             collisionarray2[k] = true;
                             if (!(cNode[n].getAttribute('ctarget').indexOf(nodelstobecheck[k].getAttribute('id')) > -1)){
@@ -1506,7 +1530,7 @@
                 }
             }
         }
-        
+
         function removetempnodebyid(id,flag){       //set flag to disable removing exsiting nodes
 //            console.log("remove "+id);
             //return;
@@ -1527,10 +1551,10 @@
                         }
                     }
                 }
-                
+
                 cL = document.getElementsByClassName("badframe2");
                 cll = cL.length;
-                
+
                 for (j = 0; j < cL.length;) {
                     if (cL[j].getAttribute('ctarget') != null && cL[j].getAttribute('ctarget').indexOf(id) > -1){
                         cL[j].setAttribute('ctarget',cL[j].getAttribute('ctarget').replace(id+", ",""));
@@ -1542,7 +1566,7 @@
                     }
                     j++;
                 }
-                
+
                 document.getElementById("node").removeChild(temp);
             }
         }
@@ -1659,6 +1683,7 @@
             }else {
                 document.getElementById('width').value = document.getElementById('wob').value;
             }
+
             wallWidth = document.getElementById('WallSizew').value;
             wallHeight = document.getElementById('WallSizeh').value;
             if (wallWidth == ""){
@@ -1680,6 +1705,30 @@
             designplot.setAttribute('height',heightofdesign);
             designplot.getElementById('boundary').setAttribute('height',heightofdesign);
             designplot.getElementById('boundary').setAttribute('width',widthofdesign);
+
+            designplot.addEventListener('touchmove', testmove, false);
+            designplot.addEventListener('touchend', testmoveend, false);
+            designplot.addEventListener('touchstart', testmovestart, false);
+
+            document.getElementById('cancelbutton').click();
+        }
+        function test(evt){
+            document.getElementById('log3').value = evt.clientX+" "+evt.clientY;
+        }
+        function testmove(e){
+            e.preventDefault();
+            drawing(e);
+            document.getElementById('log3').value = "moving";
+        }
+        function testmoveend(e){
+            e.preventDefault();
+            fireEvent(e);
+            document.getElementById('log3').value = "endmove";
+        }
+        function testmovestart(e){
+            e.preventDefault();
+            signalDrawingflag(e);
+            document.getElementById('log3').value = "startmove";
         }
 
 
@@ -1720,7 +1769,7 @@
 					</div>
 				</div>
 				<div class="modalFooter">
-					<a href="#cancel" title="Cancel" class="cancel">Cancel</a>
+					<a id="cancelbutton" href="#cancel" title="Cancel" class="cancel">Cancel</a>
 					<a href="#ok" title="Ok" class="ok" onclick="setCanvasSize();" type="submit" >OK</a>
 					<h3>If you do not enter the L' x H' of your wall canvas, it will default to 10' x 5'. Once the width of boards is set, it cannot be changed during the design.</h3>
 					<div class="clear"></div>
@@ -1728,8 +1777,8 @@
 			</div>
 		</div>
 		<div align="center" id="LTXDesign" >
-			<svg id="DesignPlot" width="775px" height="500px" onmousedown="signalDrawingflag()"
-						onmouseup="fireEvent()" onmousemove="drawing(event)" oncontextmenu="return false;">
+			<svg id="DesignPlot" width="775px" height="500px" onmousedown="signalDrawingflag(event)"
+						onmouseup="fireEvent(event)" onmousemove="drawing(event)" oncontextmenu="return false;">
 				<rect x="0" y="0" fill="white" stroke="black" stroke-width="2" id="boundary"> </rect>
 				<text id="msg1" x="5" y="15" fill="red"> </text>
 				<text id="msg2" x="5" y="35" fill="red"> </text>

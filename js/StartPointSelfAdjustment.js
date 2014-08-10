@@ -97,7 +97,7 @@ function updatealignment(mouse,mode){
     newlineH.setAttribute('y1',mouse.y);
     newlineH.setAttribute('y2',mouse.y);
     var x1, x2, y1, y2, cx, cy;
-    var meterlinels = document.getElementsByClassName('metersline');
+    var meterlinels = document.querySelectorAll('.metersline');
     var container, meter, meterline, meterd1, meterd2, lineid, frame, fx, fy;
     var newmetersplit, newmeterlinesplit, newdeliminator1split, newdeliminator2split;
     var originmeter, originmeterline, originmeterd1, originmeterd2;
@@ -108,9 +108,11 @@ function updatealignment(mouse,mode){
         y2 = meterlinels[i].getAttribute('y2');
         //console.log("parent: "+meterlinels[i]+" "+meterlinels.length);
         container = meterlinels[i].parentNode;
-        meter = container.getElementsByClassName('meters')[0];
-        meterd1 = container.getElementsByClassName('deliminator')[0];
-        meterd2 = container.getElementsByClassName('deliminator')[1];
+        if (container!=null) {
+            meter = container.querySelectorAll('.meters')[0];
+            meterd1 = container.querySelectorAll('.deliminator')[0];
+            meterd2 = container.querySelectorAll('.deliminator')[1];
+        }
         if (meterlinels[i].getAttribute('direction') === "vertical") {
             if (checktwoRectCollide(getboundingboxforline(meterlinels[i],0,0,0),getboundingboxforline(newlineH,0,0,0))){
                 cy = newlineH.getAttribute('y1');
@@ -148,7 +150,9 @@ function updatealignment(mouse,mode){
             }else {
                 cy = newlineH.getAttribute('y1');
                 container = meterlinels[i].parentNode;
-                frame = meterlinels[i].parentNode.childNodes[0];
+                if (container != null) {
+                    frame = meterlinels[i].parentNode.childNodes[0];
+                }
                 lineid = frame.getAttribute('x1')+" "+frame.getAttribute('y1')+" "+frame.getAttribute('x2')+" "+frame.getAttribute('y2');
                 newmeterlinesplit = document.getElementById(lineid+" demo-l-meterline");
                 originmeterline = document.getElementById(lineid+" demo-r-meterline");
@@ -198,7 +202,9 @@ function updatealignment(mouse,mode){
             }else {
                 cx = newlineV.getAttribute('x1');
                 container = meterlinels[i].parentNode;
-                frame = meterlinels[i].parentNode.childNodes[0];
+                if (container != null) {
+                    frame = meterlinels[i].parentNode.childNodes[0];
+                }
                 lineid = frame.getAttribute('x1')+" "+frame.getAttribute('y1')+" "+frame.getAttribute('x2')+" "+frame.getAttribute('y2');
                 newmeterlinesplit = document.getElementById(lineid+" demo-l-meterline");
                 originmeterline = document.getElementById(lineid+" demo-r-meterline");
